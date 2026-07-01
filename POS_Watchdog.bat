@@ -9,10 +9,11 @@ powershell -command "$w=(Get-Host).UI.RawUI; $s=$w.WindowSize; $b=$w.BufferSize;
 
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f >nul 2>&1
 
-set "POS_DIR=%USERPROFILE%\Documents\POS_System"
+set "POS_DIR=C:\Users\bryanreyeslopez\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
-set "UPDATE_HELPER=%~dp0pos_git_update.ps1"
+set "UPDATE_SERVER_DIR=C:\Mac\Home\Desktop\POS_Server"
+set "UPDATE_HELPER=!UPDATE_SERVER_DIR!\pos_git_update.ps1"
 set "UPDATE_VERSION_FILE=pos_version.txt"
 
 if not exist "!POS_DIR!" mkdir "!POS_DIR!"
@@ -354,7 +355,7 @@ set "UPDATE_CURRENT="
 set "UPDATE_REMOTE="
 set "UPDATE_MESSAGE="
 
-for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentScript "%~f0" -CurrentVersion "!SCRIPT_VERSION!" -VersionFileName "!UPDATE_VERSION_FILE!"`) do (
+for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentScript "%~f0" -RepoDir "!UPDATE_SERVER_DIR!" -CurrentVersion "!SCRIPT_VERSION!" -VersionFileName "!UPDATE_VERSION_FILE!"`) do (
     set "UPDATE_STATUS=%%a"
     set "UPDATE_BRANCH=%%b"
     set "UPDATE_CURRENT=%%c"
@@ -366,7 +367,7 @@ if /I "!UPDATE_STATUS!"=="UPDATED" (
     echo  [UPD] Git update pulled for !UPDATE_BRANCH!.
     echo  [UPD] Updated from !UPDATE_CURRENT! to !UPDATE_REMOTE!. Restarting launcher...
     timeout /t 2 >nul
-    start "" "%~f0"
+    start "POS_UPDATE_APPLY" /min "!UPDATE_MESSAGE!"
     exit
 )
 

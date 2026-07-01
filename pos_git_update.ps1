@@ -3,9 +3,14 @@ param(
     [string]$CurrentScript,
 
     [Parameter(Mandatory = $true)]
+    [string]$RepoDir,
+
+    [Parameter(Mandatory = $true)]
     [string]$CurrentVersion,
 
-    [string]$VersionFileName = 'pos_version.txt'
+    [string]$VersionFileName = 'pos_version.txt',
+
+    [string]$LauncherFileName = 'POS_Watchdog.bat'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,10 +85,14 @@ try {
         exit 1
     }
 
-    $scriptDir = Split-Path -Parent $CurrentScript
-    $repoResult = Invoke-Git -RepoPath $scriptDir -Arguments @('rev-parse', '--show-toplevel') -AllowFailure
+    if (-not (Test-Path -LiteralPath $RepoDir -PathType Container)) {
+        Write-Result -Status 'SKIPPED' -Message "Git repo folder '$RepoDir' was not found"
+        exit 0
+    }
+
+    $repoResult = Invoke-Git -RepoPath $RepoDir -Arguments @('rev-parse', '--show-toplevel') -AllowFailure
     if ($repoResult.ExitCode -ne 0 -or -not $repoResult.Output) {
-        Write-Result -Status 'SKIPPED' -Message 'Launcher is not inside a Git checkout'
+        Write-Result -Status 'SKIPPED' -Message 'POS_Server is not inside a Git checkout'
         exit 0
     }
 
@@ -168,13 +177,32 @@ try {
         exit 1
     }
 
-    $updatedScriptVersion = Get-VersionFromBatch -Content (Get-Content -LiteralPath $CurrentScript -Raw)
+    $repoLauncherPath = Join-Path $repoRoot $LauncherFileName
+    if (-not (Test-Path -LiteralPath $repoLauncherPath -PathType Leaf)) {
+        Write-Result -Status 'ERROR' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message "Updated checkout is missing '$LauncherFileName'"
+        exit 1
+    }
+
+    $updatedScriptVersion = Get-VersionFromBatch -Content (Get-Content -LiteralPath $repoLauncherPath -Raw)
     if ($updatedScriptVersion -ne $remoteVersion) {
         Write-Result -Status 'ERROR' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message 'Updated launcher SCRIPT_VERSION does not match remote version'
         exit 1
     }
 
-    Write-Result -Status 'UPDATED' -Branch $branch -Before $CurrentVersion -After $remoteVersion
+    $applyPath = Join-Path $env:TEMP 'apply_pos_update.bat'
+    $applyContent = @"
+@echo off
+setlocal
+timeout /t 1 >nul
+copy /y "$repoLauncherPath" "$CurrentScript" >nul
+if %errorlevel% neq 0 exit /b 1
+start "" "$CurrentScript"
+exit /b 0
+"@
+
+    Set-Content -LiteralPath $applyPath -Value $applyContent -Encoding ASCII
+
+    Write-Result -Status 'UPDATED' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message $applyPath
     exit 0
 } catch {
     Write-Result -Status 'ERROR' -Message $_.Exception.Message

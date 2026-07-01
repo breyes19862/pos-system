@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.2"
+set "SCRIPT_VERSION=3.3"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -17,6 +17,8 @@ set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
 set "ARONIUM_EXE=%ProgramFiles%\Aronium\Aronium.Pos.exe"
 if not exist "!ARONIUM_EXE!" if exist "%ProgramFiles(x86)%\Aronium\Aronium.Pos.exe" set "ARONIUM_EXE=%ProgramFiles(x86)%\Aronium\Aronium.Pos.exe"
+for %%I in ("!ARONIUM_EXE!") do set "ARONIUM_DIR=%%~dpI"
+if "!ARONIUM_DIR:~-1!"=="\" set "ARONIUM_DIR=!ARONIUM_DIR:~0,-1!"
 set "PORTABLE_GIT_DIR=!POS_DIR!\PortableGit"
 if exist "!PORTABLE_GIT_DIR!\cmd\git.exe" set "PATH=!PORTABLE_GIT_DIR!\cmd;!PORTABLE_GIT_DIR!\bin;!PATH!"
 set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!\POS_Server"
@@ -178,7 +180,7 @@ if not exist "!ARONIUM_EXE!" (
     goto LOCK_MENU
 )
 
-start "ARONIUM_POS" "!ARONIUM_EXE!"
+start "ARONIUM_POS" /D "!ARONIUM_DIR!" "!ARONIUM_EXE!"
 timeout /t 5 >nul
 
 :WATCHDOG_LOOP

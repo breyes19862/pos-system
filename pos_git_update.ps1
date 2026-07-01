@@ -38,7 +38,7 @@ function Write-Result {
     if (-not $Branch) { $Branch = '-' }
     if (-not $Before) { $Before = '-' }
     if (-not $After) { $After = '-' }
-    $safeMessage = $Message -replace '\|', '/'
+    $safeMessage = ($Message -replace '(\r\n|\n|\r)', ' ') -replace '\|', '/'
     Write-Output "$Status|$Branch|$Before|$After|$safeMessage"
 }
 
@@ -73,9 +73,16 @@ function Invoke-Git {
         [switch]$AllowFailure
     )
 
-    $output = & git -C $RepoPath @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
-    $text = ($output | Out-String).Trim()
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & git -C $RepoPath @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $text = ($output | ForEach-Object { $_.ToString() } | Out-String).Trim()
 
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         throw "git $($Arguments -join ' ') failed: $text"

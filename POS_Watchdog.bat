@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=2.8"
+set "SCRIPT_VERSION=2.9"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -354,8 +354,10 @@ if not exist "!UPDATE_HELPER!" (
     goto :EOF
 )
 
-echo.
+call :PRINT_UPDATE_BANNER
 echo  [UPD] Checking Git version file for POS updates...
+echo  [UPD] Local launcher version: !SCRIPT_VERSION!
+echo.
 set "UPDATE_STATUS="
 set "UPDATE_BRANCH="
 set "UPDATE_CURRENT="
@@ -405,7 +407,7 @@ goto :EOF
 
 :RUN_POS_SETUP
 color 0E
-echo.
+call :PRINT_UPDATE_BANNER
 echo  [SETUP] !SETUP_REASON!
 echo  [SETUP] Running POS setup...
 if not exist "!SETUP_SCRIPT!" (
@@ -426,10 +428,9 @@ exit
 
 :UPDATE_DECISION_PROMPT
 color 4F
-echo.
-echo  ==========================================================
-echo                  UPDATE CHECK WARNING
-echo  ==========================================================
+call :PRINT_UPDATE_BANNER
+echo  UPDATE CHECK WARNING
+echo  ----------------------------------------------------------------------------------------
 echo.
 echo   !UPDATE_DECISION_REASON!
 echo.
@@ -451,6 +452,17 @@ if "!UPDATE_DECISION!"=="2" (
     exit
 )
 goto UPDATE_DECISION_INPUT
+
+:PRINT_UPDATE_BANNER
+cls
+echo.
+echo  ========================================================================================
+echo.
+echo                         P . O . S .   U P D A T E R
+echo.
+echo  ========================================================================================
+echo.
+goto :EOF
 
 :PRINT_BANNER
 cls

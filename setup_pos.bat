@@ -188,7 +188,14 @@ if exist "!ARONIUM_EXE!" (
 
 echo [WARN] Aronium POS is not installed.
 if not exist "!ARONIUM_INSTALLER!" (
+    echo [WARN] Aronium installer was not found locally. Syncing POS_Server from GitHub...
+    call :SYNC_REPO
+    if !errorlevel! neq 0 exit /b !errorlevel!
+)
+
+if not exist "!ARONIUM_INSTALLER!" (
     echo [ERROR] Aronium installer was not found: !ARONIUM_INSTALLER!
+    echo [ERROR] Confirm Aronium.Lite.Setup.exe exists in the GitHub repository root.
     exit /b 1
 )
 

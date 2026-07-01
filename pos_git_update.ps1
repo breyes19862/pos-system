@@ -16,23 +16,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $env:GIT_TERMINAL_PROMPT = '0'
-$script:GitAuthArgs = @()
-
-function Get-GitHubToken {
-    if ($env:GITHUB_TOKEN) {
-        return $env:GITHUB_TOKEN.Trim()
-    }
-
-    $tokenPath = Join-Path $env:USERPROFILE 'Documents\POS_System\github_token.txt'
-    if (Test-Path -LiteralPath $tokenPath -PathType Leaf) {
-        $token = (Get-Content -LiteralPath $tokenPath -TotalCount 1).Trim()
-        if ($token) {
-            return $token
-        }
-    }
-
-    return $null
-}
 
 function Write-Result {
     param(
@@ -81,7 +64,7 @@ function Invoke-Git {
         [switch]$AllowFailure
     )
 
-    $output = & git @script:GitAuthArgs -C $RepoPath @Arguments 2>&1
+    $output = & git -C $RepoPath @Arguments 2>&1
     $exitCode = $LASTEXITCODE
     $text = ($output | Out-String).Trim()
 
@@ -96,14 +79,6 @@ function Invoke-Git {
 }
 
 try {
-    $githubToken = Get-GitHubToken
-    if ($githubToken) {
-        $script:GitAuthArgs = @(
-            '-c',
-            "http.https://github.com/.extraheader=AUTHORIZATION: bearer $githubToken"
-        )
-    }
-
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Result -Status 'SETUP_REQUIRED' -Message 'Git is not installed or not on PATH'
         exit 0
@@ -153,26 +128,12 @@ try {
         exit 0
     }
 
-    $fetchResult = Invoke-Git -RepoPath $repoRoot -Arguments @(
+    Invoke-Git -RepoPath $repoRoot -Arguments @(
         'fetch',
         '--prune',
         $remote,
         "+refs/heads/${remoteBranch}:refs/remotes/${remote}/${remoteBranch}"
-    ) -AllowFailure
-
-    if ($fetchResult.ExitCode -ne 0 -and $githubToken) {
-        $script:GitAuthArgs = @()
-        $fetchResult = Invoke-Git -RepoPath $repoRoot -Arguments @(
-            'fetch',
-            '--prune',
-            $remote,
-            "+refs/heads/${remoteBranch}:refs/remotes/${remote}/${remoteBranch}"
-        ) -AllowFailure
-    }
-
-    if ($fetchResult.ExitCode -ne 0) {
-        throw "git fetch failed: $($fetchResult.Output)"
-    }
+    ) | Out-Null
 
     $remoteRef = "$remote/$remoteBranch"
     $remoteCommit = (Invoke-Git -RepoPath $repoRoot -Arguments @('rev-parse', $remoteRef)).Output

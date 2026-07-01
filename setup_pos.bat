@@ -80,7 +80,7 @@ exit /b 0
 git --version >nul 2>&1
 if !errorlevel! equ 0 (
     echo [+] Git is installed.
-    goto :EOF
+    exit /b 0
 )
 
 if exist "!PORTABLE_GIT_CMD!" (
@@ -88,7 +88,7 @@ if exist "!PORTABLE_GIT_CMD!" (
     git --version >nul 2>&1
     if !errorlevel! equ 0 (
         echo [+] Portable Git is installed.
-        goto :EOF
+        exit /b 0
     )
 )
 
@@ -101,7 +101,7 @@ if !errorlevel! equ 0 (
         git --version >nul 2>&1
         if !errorlevel! equ 0 (
             echo [+] Git installed successfully.
-            goto :EOF
+            exit /b 0
         )
     )
     echo [WARN] winget Git installation did not complete. Trying Portable Git...
@@ -124,7 +124,7 @@ if !errorlevel! neq 0 (
 )
 
 echo [+] Portable Git installed successfully.
-goto :EOF
+exit /b 0
 
 :CONFIGURE_GIT_SAFE_DIRECTORY
 echo [*] Configuring Git safe directory for POS_Server...
@@ -133,7 +133,7 @@ if !errorlevel! neq 0 (
     echo [ERROR] Failed to configure Git safe.directory.
     exit /b 1
 )
-goto :EOF
+exit /b 0
 
 :CONFIGURE_GIT_IDENTITY
 echo [*] Configuring Git identity...
@@ -144,12 +144,12 @@ if !errorlevel! neq 0 exit /b 1
 git config --global --unset-all credential.helper >nul 2>&1
 git config --global --unset-all credential.https://github.com.username >nul 2>&1
 echo [+] Git email configured as !GIT_USER_EMAIL!.
-goto :EOF
+exit /b 0
 
 :LOAD_GITHUB_TOKEN
 if defined GITHUB_TOKEN (
     echo [+] GitHub token loaded from environment.
-    goto :EOF
+    exit /b 0
 )
 
 if exist "!GITHUB_TOKEN_FILE!" (
@@ -165,7 +165,7 @@ if defined GITHUB_TOKEN (
     echo [WARN] No GitHub token found. Public repositories can still download.
     echo [WARN] For private repo access, save a token in: !GITHUB_TOKEN_FILE!
 )
-goto :EOF
+exit /b 0
 
 :SYNC_REPO
 if not exist "!SERVER_DIR!" mkdir "!SERVER_DIR!"
@@ -212,4 +212,4 @@ git -C "!SERVER_DIR!" reset --hard "origin/!REPO_BRANCH!"
 if !errorlevel! neq 0 exit /b 1
 
 echo [+] POS_Server Git checkout is ready.
-goto :EOF
+exit /b 0

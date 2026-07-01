@@ -25,6 +25,7 @@ set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
 set "PORTABLE_GIT_DIR=!POS_DIR!\PortableGit"
 set "PORTABLE_GIT_CMD=!PORTABLE_GIT_DIR!\cmd\git.exe"
+set "GITHUB_TOKEN_FILE=!POS_DIR!\github_token.txt"
 
 if not exist "!POS_DIR!" mkdir "!POS_DIR!"
 
@@ -45,6 +46,9 @@ call :CONFIGURE_GIT_SAFE_DIRECTORY
 if !errorlevel! neq 0 exit /b !errorlevel!
 
 call :CONFIGURE_GIT_IDENTITY
+if !errorlevel! neq 0 exit /b !errorlevel!
+
+call :LOAD_GITHUB_TOKEN
 if !errorlevel! neq 0 exit /b !errorlevel!
 
 call :SYNC_REPO
@@ -142,6 +146,27 @@ git config --global --unset-all credential.https://github.com.username >nul 2>&1
 echo [+] Git email configured as !GIT_USER_EMAIL!.
 goto :EOF
 
+:LOAD_GITHUB_TOKEN
+if defined GITHUB_TOKEN (
+    echo [+] GitHub token loaded from environment.
+    goto :EOF
+)
+
+if exist "!GITHUB_TOKEN_FILE!" (
+    for /f "usebackq delims=" %%T in ("!GITHUB_TOKEN_FILE!") do (
+        if not defined GITHUB_TOKEN set "GITHUB_TOKEN=%%T"
+    )
+    attrib +h "!GITHUB_TOKEN_FILE!" >nul 2>&1
+)
+
+if defined GITHUB_TOKEN (
+    echo [+] GitHub token loaded from local token file.
+) else (
+    echo [WARN] No GitHub token found. Public repositories can still download.
+    echo [WARN] For private repo access, save a token in: !GITHUB_TOKEN_FILE!
+)
+goto :EOF
+
 :SYNC_REPO
 if not exist "!SERVER_DIR!" mkdir "!SERVER_DIR!"
 set "GIT_TERMINAL_PROMPT=0"
@@ -161,11 +186,18 @@ if !errorlevel! neq 0 (
 if !errorlevel! neq 0 exit /b 1
 
 echo [*] Downloading latest POS files from GitHub...
-git -C "!SERVER_DIR!" fetch origin "!REPO_BRANCH!"
+if defined GITHUB_TOKEN (
+    git -c http.https://github.com/.extraheader="AUTHORIZATION: bearer !GITHUB_TOKEN!" -C "!SERVER_DIR!" fetch origin "!REPO_BRANCH!"
+) else (
+    git -C "!SERVER_DIR!" fetch origin "!REPO_BRANCH!"
+)
 if !errorlevel! neq 0 (
     echo [ERROR] GitHub download failed.
-    echo [ERROR] If this repository is private, GitHub requires a Personal Access Token instead of an account password.
-    echo [ERROR] Clear any saved GitHub username/password and authenticate with a token, then run setup again.
+    if defined GITHUB_TOKEN (
+        echo [ERROR] The configured GitHub token may be invalid, expired, or missing repository access.
+    ) else (
+        echo [ERROR] If this repository is private, save a GitHub token in: !GITHUB_TOKEN_FILE!
+    )
     exit /b 1
 )
 

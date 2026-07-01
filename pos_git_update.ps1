@@ -73,16 +73,29 @@ function Invoke-Git {
         [switch]$AllowFailure
     )
 
-    $previousErrorActionPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $output = & git -C $RepoPath @Arguments 2>&1
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
+    $gitCommand = Get-Command git -ErrorAction Stop
+    $gitExe = $gitCommand.Source
+    $processArgs = @('-C', $RepoPath) + $Arguments
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $gitExe
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
 
-    $text = ($output | ForEach-Object { $_.ToString() } | Out-String).Trim()
+    $startInfo.Arguments = ($processArgs | ForEach-Object {
+        '"' + ($_.Replace('"', '\"')) + '"'
+    }) -join ' '
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    [void]$process.Start()
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+
+    $exitCode = $process.ExitCode
+    $text = (($stdout, $stderr) -join "`n").Trim()
 
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         throw "git $($Arguments -join ' ') failed: $text"

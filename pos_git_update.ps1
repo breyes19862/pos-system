@@ -17,6 +17,15 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $env:GIT_TERMINAL_PROMPT = '0'
 
+function Add-PortableGitToPath {
+    $portableGitRoot = Join-Path $env:USERPROFILE 'Documents\POS_System\PortableGit'
+    $portableGit = Join-Path $portableGitRoot 'cmd\git.exe'
+
+    if (Test-Path -LiteralPath $portableGit -PathType Leaf) {
+        $env:PATH = (Join-Path $portableGitRoot 'cmd') + ';' + (Join-Path $portableGitRoot 'bin') + ';' + $env:PATH
+    }
+}
+
 function Write-Result {
     param(
         [string]$Status,
@@ -79,6 +88,8 @@ function Invoke-Git {
 }
 
 try {
+    Add-PortableGitToPath
+
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Result -Status 'SETUP_REQUIRED' -Message 'Git is not installed or not on PATH'
         exit 0

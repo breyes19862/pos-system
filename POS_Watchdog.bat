@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=2.3"
+set "SCRIPT_VERSION=2.4"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -15,6 +15,8 @@ if "!LAUNCHER_DIR:~-1!"=="\" set "LAUNCHER_DIR=!LAUNCHER_DIR:~0,-1!"
 set "POS_DIR=%USERPROFILE%\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
+set "PORTABLE_GIT_DIR=!POS_DIR!\PortableGit"
+if exist "!PORTABLE_GIT_DIR!\cmd\git.exe" set "PATH=!PORTABLE_GIT_DIR!\cmd;!PORTABLE_GIT_DIR!\bin;!PATH!"
 set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!\POS_Server"
 if not exist "!UPDATE_SERVER_DIR!\pos_git_update.ps1" if exist "%~dp0pos_git_update.ps1" set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!"
 set "UPDATE_HELPER=!UPDATE_SERVER_DIR!\pos_git_update.ps1"

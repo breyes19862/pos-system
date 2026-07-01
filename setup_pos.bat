@@ -152,6 +152,9 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
+git -C "!SERVER_DIR!" clean -fdx
+if !errorlevel! neq 0 exit /b 1
+
 git -C "!SERVER_DIR!" checkout -B "!REPO_BRANCH!" "origin/!REPO_BRANCH!"
 if !errorlevel! neq 0 exit /b 1
 

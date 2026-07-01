@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=1.1"
+set "SCRIPT_VERSION=1.2"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -18,6 +18,7 @@ set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
 set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!\POS_Server"
 if not exist "!UPDATE_SERVER_DIR!\pos_git_update.ps1" if exist "%~dp0pos_git_update.ps1" set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!"
 set "UPDATE_HELPER=!UPDATE_SERVER_DIR!\pos_git_update.ps1"
+set "SETUP_SCRIPT=!UPDATE_SERVER_DIR!\setup_pos.bat"
 set "UPDATE_VERSION_FILE=pos_version.txt"
 
 if not exist "!POS_DIR!" mkdir "!POS_DIR!"
@@ -346,8 +347,8 @@ exit
 
 :CHECK_FOR_UPDATES
 if not exist "!UPDATE_HELPER!" (
-    set "UPDATE_DECISION_REASON=Update helper not found: !UPDATE_HELPER!"
-    call :UPDATE_DECISION_PROMPT
+    set "SETUP_REASON=Update helper not found: !UPDATE_HELPER!"
+    call :RUN_POS_SETUP
     goto :EOF
 )
 
@@ -381,17 +382,45 @@ if /I "!UPDATE_STATUS!"=="CURRENT" (
     goto :EOF
 )
 
+if /I "!UPDATE_STATUS!"=="SETUP_REQUIRED" (
+    if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=POS setup is required."
+    set "SETUP_REASON=!UPDATE_MESSAGE!"
+    call :RUN_POS_SETUP
+    goto :EOF
+)
+
 if /I "!UPDATE_STATUS!"=="SKIPPED" (
-    if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=No reason was returned by the updater. Confirm POS_Server is a Git checkout and Git is installed."
+    if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=No reason was returned by the updater."
     set "UPDATE_DECISION_REASON=Update skipped: !UPDATE_MESSAGE!"
     call :UPDATE_DECISION_PROMPT
     goto :EOF
 )
 
-if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=No reason was returned by the updater. Confirm POS_Server is a Git checkout and Git is installed."
+if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=No reason was returned by the updater."
 set "UPDATE_DECISION_REASON=Git update check failed: !UPDATE_MESSAGE!"
 call :UPDATE_DECISION_PROMPT
 goto :EOF
+
+:RUN_POS_SETUP
+color 0E
+echo.
+echo  [SETUP] !SETUP_REASON!
+echo  [SETUP] Running POS setup...
+if not exist "!SETUP_SCRIPT!" (
+    set "UPDATE_DECISION_REASON=Setup required, but setup_pos.bat was not found: !SETUP_SCRIPT!"
+    call :UPDATE_DECISION_PROMPT
+    goto :EOF
+)
+call "!SETUP_SCRIPT!" /auto
+if !errorlevel! neq 0 (
+    set "UPDATE_DECISION_REASON=POS setup failed with exit code !errorlevel!."
+    call :UPDATE_DECISION_PROMPT
+    goto :EOF
+)
+echo  [SETUP] Setup completed. Restarting POS launcher...
+timeout /t 2 >nul
+start "" "%~f0"
+exit
 
 :UPDATE_DECISION_PROMPT
 color 4F

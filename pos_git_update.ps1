@@ -25,6 +25,9 @@ function Write-Result {
         [string]$Message = ''
     )
 
+    if (-not $Branch) { $Branch = '-' }
+    if (-not $Before) { $Before = '-' }
+    if (-not $After) { $After = '-' }
     $safeMessage = $Message -replace '\|', '/'
     Write-Output "$Status|$Branch|$Before|$After|$safeMessage"
 }
@@ -76,7 +79,7 @@ function Invoke-Git {
 
 try {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Result -Status 'SKIPPED' -Message 'Git is not installed or not on PATH'
+        Write-Result -Status 'SETUP_REQUIRED' -Message 'Git is not installed or not on PATH'
         exit 0
     }
 
@@ -86,20 +89,20 @@ try {
     }
 
     if (-not (Test-Path -LiteralPath $RepoDir -PathType Container)) {
-        Write-Result -Status 'SKIPPED' -Message "Git repo folder '$RepoDir' was not found"
+        Write-Result -Status 'SETUP_REQUIRED' -Message "Git repo folder '$RepoDir' was not found"
         exit 0
     }
 
     $repoResult = Invoke-Git -RepoPath $RepoDir -Arguments @('rev-parse', '--show-toplevel') -AllowFailure
     if ($repoResult.ExitCode -ne 0 -or -not $repoResult.Output) {
-        Write-Result -Status 'SKIPPED' -Message 'POS_Server is not inside a Git checkout'
+        Write-Result -Status 'SETUP_REQUIRED' -Message 'POS_Server is not inside a Git checkout'
         exit 0
     }
 
     $repoRoot = $repoResult.Output
     $branch = (Invoke-Git -RepoPath $repoRoot -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')).Output
     if (-not $branch -or $branch -eq 'HEAD') {
-        Write-Result -Status 'SKIPPED' -Message 'Git checkout is detached'
+        Write-Result -Status 'SETUP_REQUIRED' -Message 'POS_Server Git checkout is detached'
         exit 0
     }
 

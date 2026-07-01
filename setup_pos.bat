@@ -152,6 +152,15 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
+git -C "!SERVER_DIR!" config core.sparseCheckout true
+if !errorlevel! neq 0 exit /b 1
+
+(
+    echo POS_Watchdog.bat
+    echo setup_pos.bat
+    echo pos_git_update.ps1
+) > "!SERVER_DIR!\.git\info\sparse-checkout"
+
 git -C "!SERVER_DIR!" clean -fdx
 if !errorlevel! neq 0 exit /b 1
 

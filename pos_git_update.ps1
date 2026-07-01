@@ -180,18 +180,6 @@ try {
         Invoke-Git -RepoPath $repoRoot -Arguments @('pull', '--ff-only', $remote, $remoteBranch) | Out-Null
     }
 
-    $updatedVersionPath = Join-Path $repoRoot $VersionFileName
-    if (-not (Test-Path -LiteralPath $updatedVersionPath -PathType Leaf)) {
-        Write-Result -Status 'ERROR' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message 'Updated checkout is missing the version file'
-        exit 1
-    }
-
-    $updatedVersion = Get-VersionFromText -Content (Get-Content -LiteralPath $updatedVersionPath -Raw)
-    if ($updatedVersion -ne $remoteVersion) {
-        Write-Result -Status 'ERROR' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message 'Updated checkout version does not match remote version'
-        exit 1
-    }
-
     $repoLauncherPath = Join-Path $repoRoot $LauncherFileName
     if (-not (Test-Path -LiteralPath $repoLauncherPath -PathType Leaf)) {
         Write-Result -Status 'ERROR' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message "Updated checkout is missing '$LauncherFileName'"

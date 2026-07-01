@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=2.9"
+set "SCRIPT_VERSION=3.0"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -358,6 +358,7 @@ call :PRINT_UPDATE_BANNER
 echo  [UPD] Checking Git version file for POS updates...
 echo  [UPD] Local launcher version: !SCRIPT_VERSION!
 echo.
+call :PRINT_UPDATE_PROGRESS 10 "Preparing update check"
 set "UPDATE_STATUS="
 set "UPDATE_BRANCH="
 set "UPDATE_CURRENT="
@@ -371,16 +372,23 @@ for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionP
     set "UPDATE_REMOTE=%%d"
     set "UPDATE_MESSAGE=%%e"
 )
+call :PRINT_UPDATE_PROGRESS 35 "Version check completed"
 
 if /I "!UPDATE_STATUS!"=="UPDATED" (
+    call :PRINT_UPDATE_PROGRESS 70 "Update downloaded and staged"
     echo  [UPD] Git update pulled for !UPDATE_BRANCH!.
-    echo  [UPD] Updated from !UPDATE_CURRENT! to !UPDATE_REMOTE!. Restarting launcher...
-    timeout /t 2 >nul
+    echo  [UPD] Updated from !UPDATE_CURRENT! to !UPDATE_REMOTE!.
     start "POS_UPDATE_APPLY" /min "!UPDATE_MESSAGE!"
+    call :PRINT_UPDATE_PROGRESS 100 "Update applied"
+    echo.
+    echo  [UPD] Update completed successfully.
+    echo  [UPD] POS is restarting now. Please wait...
+    timeout /t 5 >nul
     exit
 )
 
 if /I "!UPDATE_STATUS!"=="CURRENT" (
+    call :PRINT_UPDATE_PROGRESS 100 "No update required"
     echo  [UPD] POS version !UPDATE_CURRENT! is current on !UPDATE_BRANCH!.
     timeout /t 1 >nul
     goto :EOF
@@ -408,6 +416,7 @@ goto :EOF
 :RUN_POS_SETUP
 color 0E
 call :PRINT_UPDATE_BANNER
+call :PRINT_UPDATE_PROGRESS 15 "Preparing setup"
 echo  [SETUP] !SETUP_REASON!
 echo  [SETUP] Running POS setup...
 if not exist "!SETUP_SCRIPT!" (
@@ -421,8 +430,10 @@ if !errorlevel! neq 0 (
     call :UPDATE_DECISION_PROMPT
     goto :EOF
 )
-echo  [SETUP] Setup completed. Restarting POS launcher...
-timeout /t 2 >nul
+call :PRINT_UPDATE_PROGRESS 100 "Setup completed"
+echo  [SETUP] Setup completed successfully.
+echo  [SETUP] POS is restarting now. Please wait...
+timeout /t 5 >nul
 start "" "%~f0"
 exit
 
@@ -452,6 +463,22 @@ if "!UPDATE_DECISION!"=="2" (
     exit
 )
 goto UPDATE_DECISION_INPUT
+
+:PRINT_UPDATE_PROGRESS
+set "PROGRESS_PERCENT=%~1"
+set "PROGRESS_LABEL=%~2"
+set "PROGRESS_BAR="
+if %PROGRESS_PERCENT% GEQ 10 set "PROGRESS_BAR=####--------------------------"
+if %PROGRESS_PERCENT% GEQ 20 set "PROGRESS_BAR=######------------------------"
+if %PROGRESS_PERCENT% GEQ 30 set "PROGRESS_BAR=#########---------------------"
+if %PROGRESS_PERCENT% GEQ 35 set "PROGRESS_BAR=###########-------------------"
+if %PROGRESS_PERCENT% GEQ 50 set "PROGRESS_BAR=###############---------------"
+if %PROGRESS_PERCENT% GEQ 70 set "PROGRESS_BAR=#####################---------"
+if %PROGRESS_PERCENT% GEQ 100 set "PROGRESS_BAR=##############################"
+echo  [UPD] !PROGRESS_LABEL!
+echo  [UPD] [!PROGRESS_BAR!] !PROGRESS_PERCENT!%%
+echo.
+goto :EOF
 
 :PRINT_UPDATE_BANNER
 cls

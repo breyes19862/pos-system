@@ -188,6 +188,10 @@ if !errorlevel! neq 0 exit /b 1
 echo [*] Downloading latest POS files from GitHub...
 if defined GITHUB_TOKEN (
     git -c http.https://github.com/.extraheader="AUTHORIZATION: bearer !GITHUB_TOKEN!" -C "!SERVER_DIR!" fetch origin "!REPO_BRANCH!"
+    if !errorlevel! neq 0 (
+        echo [WARN] GitHub token fetch failed. Retrying without token...
+        git -C "!SERVER_DIR!" fetch origin "!REPO_BRANCH!"
+    )
 ) else (
     git -C "!SERVER_DIR!" fetch origin "!REPO_BRANCH!"
 )

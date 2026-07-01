@@ -153,12 +153,26 @@ try {
         exit 0
     }
 
-    Invoke-Git -RepoPath $repoRoot -Arguments @(
+    $fetchResult = Invoke-Git -RepoPath $repoRoot -Arguments @(
         'fetch',
         '--prune',
         $remote,
         "+refs/heads/${remoteBranch}:refs/remotes/${remote}/${remoteBranch}"
-    ) | Out-Null
+    ) -AllowFailure
+
+    if ($fetchResult.ExitCode -ne 0 -and $githubToken) {
+        $script:GitAuthArgs = @()
+        $fetchResult = Invoke-Git -RepoPath $repoRoot -Arguments @(
+            'fetch',
+            '--prune',
+            $remote,
+            "+refs/heads/${remoteBranch}:refs/remotes/${remote}/${remoteBranch}"
+        ) -AllowFailure
+    }
+
+    if ($fetchResult.ExitCode -ne 0) {
+        throw "git fetch failed: $($fetchResult.Output)"
+    }
 
     $remoteRef = "$remote/$remoteBranch"
     $remoteCommit = (Invoke-Git -RepoPath $repoRoot -Arguments @('rev-parse', $remoteRef)).Output

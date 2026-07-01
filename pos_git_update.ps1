@@ -1,6 +1,11 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$CurrentScript
+    [string]$CurrentScript,
+
+    [Parameter(Mandatory = $true)]
+    [string]$StateDir,
+
+    [string]$VersionFileName = 'pos_version.txt'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +22,42 @@ function Write-Result {
 
     $safeMessage = $Message -replace '\|', '/'
     Write-Output "$Status|$Branch|$Before|$After|$safeMessage"
+}
+
+function Get-VersionFromText {
+    param([string]$Content)
+
+    foreach ($line in ($Content -split "`r?`n")) {
+        if ($line -match '^\s*VER\s*=\s*([0-9]+(?:\.[0-9]+)*)\s*$') {
+            return $Matches[1]
+        }
+    }
+
+    return $null
+}
+
+function Convert-ToVersion {
+    param([string]$Value)
+
+    try {
+        return [version]$Value
+    } catch {
+        throw "Invalid version number '$Value'"
+    }
+}
+
+function Save-InstalledVersion {
+    param(
+        [string]$StatePath,
+        [string]$Version
+    )
+
+    Set-Content -LiteralPath $StatePath -Value "VER=$Version" -Encoding ASCII
+    try {
+        & attrib +h $StatePath 2>$null | Out-Null
+    } catch {
+        # Attribute hiding is best-effort and only applies on Windows.
+    }
 }
 
 function Invoke-Git {
@@ -51,6 +92,8 @@ try {
         exit 1
     }
 
+    New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+
     $scriptDir = Split-Path -Parent $CurrentScript
     $repoResult = Invoke-Git -RepoPath $scriptDir -Arguments @('rev-parse', '--show-toplevel') -AllowFailure
     if ($repoResult.ExitCode -ne 0 -or -not $repoResult.Output) {
@@ -78,6 +121,21 @@ try {
     }
 
     $localCommit = (Invoke-Git -RepoPath $repoRoot -Arguments @('rev-parse', 'HEAD')).Output
+    $versionStatePath = Join-Path $StateDir 'installed_pos_version.txt'
+    $localVersionPath = Join-Path $repoRoot $VersionFileName
+    $installedVersion = $null
+
+    if (Test-Path -LiteralPath $versionStatePath -PathType Leaf) {
+        $installedVersion = Get-VersionFromText -Content (Get-Content -LiteralPath $versionStatePath -Raw)
+    }
+
+    if (-not $installedVersion -and (Test-Path -LiteralPath $localVersionPath -PathType Leaf)) {
+        $installedVersion = Get-VersionFromText -Content (Get-Content -LiteralPath $localVersionPath -Raw)
+    }
+
+    if (-not $installedVersion) {
+        $installedVersion = '0.0'
+    }
 
     $dirty = (Invoke-Git -RepoPath $repoRoot -Arguments @('status', '--porcelain', '--untracked-files=no')).Output
     if ($dirty) {
@@ -94,27 +152,57 @@ try {
 
     $remoteRef = "$remote/$remoteBranch"
     $remoteCommit = (Invoke-Git -RepoPath $repoRoot -Arguments @('rev-parse', $remoteRef)).Output
+    $remoteVersionContent = (Invoke-Git -RepoPath $repoRoot -Arguments @('show', "${remoteRef}:${VersionFileName}") -AllowFailure).Output
+    if (-not $remoteVersionContent) {
+        Write-Result -Status 'SKIPPED' -Branch $branch -Before $installedVersion -After $installedVersion -Message "Remote version file '$VersionFileName' was not found"
+        exit 0
+    }
+
+    $remoteVersion = Get-VersionFromText -Content $remoteVersionContent
+    if (-not $remoteVersion) {
+        Write-Result -Status 'SKIPPED' -Branch $branch -Before $installedVersion -After $installedVersion -Message "Remote version file must contain VER=number"
+        exit 0
+    }
+
+    $installedVersionValue = Convert-ToVersion -Value $installedVersion
+    $remoteVersionValue = Convert-ToVersion -Value $remoteVersion
+
+    if ($remoteVersionValue -le $installedVersionValue) {
+        Save-InstalledVersion -StatePath $versionStatePath -Version $installedVersion
+        Write-Result -Status 'CURRENT' -Branch $branch -Before $installedVersion -After $remoteVersion
+        exit 0
+    }
+
+    if ($localCommit -ne $remoteCommit) {
+        $ancestorCheck = Invoke-Git -RepoPath $repoRoot -Arguments @('merge-base', '--is-ancestor', $localCommit, $remoteCommit) -AllowFailure
+        if ($ancestorCheck.ExitCode -ne 0) {
+            Write-Result -Status 'SKIPPED' -Branch $branch -Before $installedVersion -After $remoteVersion -Message 'Local branch has diverged from upstream'
+            exit 0
+        }
+
+        Invoke-Git -RepoPath $repoRoot -Arguments @('pull', '--ff-only', $remote, $remoteBranch) | Out-Null
+    }
+
+    $updatedVersionPath = Join-Path $repoRoot $VersionFileName
+    if (-not (Test-Path -LiteralPath $updatedVersionPath -PathType Leaf)) {
+        Write-Result -Status 'ERROR' -Branch $branch -Before $installedVersion -After $remoteVersion -Message 'Updated checkout is missing the version file'
+        exit 1
+    }
+
+    $updatedVersion = Get-VersionFromText -Content (Get-Content -LiteralPath $updatedVersionPath -Raw)
+    if ($updatedVersion -ne $remoteVersion) {
+        Write-Result -Status 'ERROR' -Branch $branch -Before $installedVersion -After $remoteVersion -Message 'Updated checkout version does not match remote version'
+        exit 1
+    }
+
+    Save-InstalledVersion -StatePath $versionStatePath -Version $remoteVersion
 
     if ($localCommit -eq $remoteCommit) {
-        Write-Result -Status 'CURRENT' -Branch $branch -Before $localCommit -After $remoteCommit
+        Write-Result -Status 'CURRENT' -Branch $branch -Before $remoteVersion -After $remoteVersion
         exit 0
     }
 
-    $ancestorCheck = Invoke-Git -RepoPath $repoRoot -Arguments @('merge-base', '--is-ancestor', $localCommit, $remoteCommit) -AllowFailure
-    if ($ancestorCheck.ExitCode -ne 0) {
-        Write-Result -Status 'SKIPPED' -Branch $branch -Before $localCommit -After $remoteCommit -Message 'Local branch has diverged from upstream'
-        exit 0
-    }
-
-    Invoke-Git -RepoPath $repoRoot -Arguments @('pull', '--ff-only', $remote, $remoteBranch) | Out-Null
-    $updatedCommit = (Invoke-Git -RepoPath $repoRoot -Arguments @('rev-parse', 'HEAD')).Output
-
-    if ($updatedCommit -eq $localCommit) {
-        Write-Result -Status 'CURRENT' -Branch $branch -Before $localCommit -After $updatedCommit
-        exit 0
-    }
-
-    Write-Result -Status 'UPDATED' -Branch $branch -Before $localCommit -After $updatedCommit
+    Write-Result -Status 'UPDATED' -Branch $branch -Before $installedVersion -After $remoteVersion
     exit 0
 } catch {
     Write-Result -Status 'ERROR' -Message $_.Exception.Message

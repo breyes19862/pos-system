@@ -11,6 +11,7 @@ set "POS_DIR=%USERPROFILE%\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
 set "UPDATE_HELPER=%~dp0pos_git_update.ps1"
+set "UPDATE_VERSION_FILE=pos_version.txt"
 
 if not exist "!POS_DIR!" mkdir "!POS_DIR!"
 if not exist "!UNLOCK_FILE!" (
@@ -344,31 +345,31 @@ if not exist "!UPDATE_HELPER!" (
 )
 
 echo.
-echo  [UPD] Checking Git for POS updates...
+echo  [UPD] Checking Git version file for POS updates...
 set "UPDATE_STATUS="
 set "UPDATE_BRANCH="
-set "UPDATE_BEFORE="
-set "UPDATE_AFTER="
+set "UPDATE_CURRENT="
+set "UPDATE_REMOTE="
 set "UPDATE_MESSAGE="
 
-for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentScript "%~f0"`) do (
+for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentScript "%~f0" -StateDir "!POS_DIR!" -VersionFileName "!UPDATE_VERSION_FILE!"`) do (
     set "UPDATE_STATUS=%%a"
     set "UPDATE_BRANCH=%%b"
-    set "UPDATE_BEFORE=%%c"
-    set "UPDATE_AFTER=%%d"
+    set "UPDATE_CURRENT=%%c"
+    set "UPDATE_REMOTE=%%d"
     set "UPDATE_MESSAGE=%%e"
 )
 
 if /I "!UPDATE_STATUS!"=="UPDATED" (
     echo  [UPD] Git update pulled for !UPDATE_BRANCH!.
-    echo  [UPD] Restarting POS launcher at !UPDATE_AFTER!...
+    echo  [UPD] Updated from !UPDATE_CURRENT! to !UPDATE_REMOTE!. Restarting launcher...
     timeout /t 2 >nul
     start "" "%~f0"
     exit
 )
 
 if /I "!UPDATE_STATUS!"=="CURRENT" (
-    echo  [UPD] POS checkout is current on !UPDATE_BRANCH!.
+    echo  [UPD] POS version !UPDATE_CURRENT! is current on !UPDATE_BRANCH!.
     timeout /t 1 >nul
     goto :EOF
 )

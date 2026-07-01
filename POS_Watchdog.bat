@@ -1,6 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+set "SCRIPT_VERSION=1.0.0"
+set "UPDATE_URL=https://v3xyservices.com/functions/api/pos/bash_update"
+
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
 powershell -command "$w=(Get-Host).UI.RawUI; $s=$w.WindowSize; $b=$w.BufferSize; $b.Width=$s.Width; $b.Height=$s.Height; $w.BufferSize=$b" >nul 2>&1
@@ -10,6 +13,7 @@ reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v Disa
 set "POS_DIR=%USERPROFILE%\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
+set "UPDATE_HELPER=%~dp0pos_update.ps1"
 
 if not exist "!POS_DIR!" mkdir "!POS_DIR!"
 if not exist "!UNLOCK_FILE!" (
@@ -20,6 +24,8 @@ if not exist "!ADMIN_FILE!" (
     echo 462362> "!ADMIN_FILE!"
     attrib +h "!ADMIN_FILE!"
 )
+
+call :CHECK_FOR_UPDATES
 
 set SHOW_PIN=0
 goto PRE_BOOT_LOCK
@@ -332,6 +338,52 @@ timeout /t 2 >nul
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 0 /f >nul 2>&1
 start explorer.exe
 exit
+
+:CHECK_FOR_UPDATES
+if not exist "!UPDATE_HELPER!" (
+    echo  [UPD] Update helper not found. Skipping update check.
+    timeout /t 1 >nul
+    goto :EOF
+)
+
+echo.
+echo  [UPD] Checking for POS script updates...
+set "UPDATE_STATUS="
+set "UPDATE_VERSION="
+set "UPDATE_STAGE="
+set "UPDATE_APPLY="
+set "UPDATE_MESSAGE="
+
+for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentVersion "!SCRIPT_VERSION!" -Endpoint "!UPDATE_URL!" -CurrentScript "%~f0" -StageDir "!POS_DIR!\updates"`) do (
+    set "UPDATE_STATUS=%%a"
+    set "UPDATE_VERSION=%%b"
+    set "UPDATE_STAGE=%%c"
+    set "UPDATE_APPLY=%%d"
+    set "UPDATE_MESSAGE=%%e"
+)
+
+if /I "!UPDATE_STATUS!"=="UPDATED" (
+    echo  [UPD] Update !UPDATE_VERSION! downloaded. Applying now...
+    timeout /t 2 >nul
+    start "POS_UPDATE_APPLY" /min "!UPDATE_APPLY!"
+    exit
+)
+
+if /I "!UPDATE_STATUS!"=="CURRENT" (
+    echo  [UPD] POS script is current. Version !SCRIPT_VERSION!.
+    timeout /t 1 >nul
+    goto :EOF
+)
+
+if /I "!UPDATE_STATUS!"=="SKIPPED" (
+    echo  [UPD] Update skipped: !UPDATE_MESSAGE!
+    timeout /t 1 >nul
+    goto :EOF
+)
+
+echo  [UPD] Update check failed. Continuing with version !SCRIPT_VERSION!.
+timeout /t 1 >nul
+goto :EOF
 
 :PRINT_BANNER
 cls

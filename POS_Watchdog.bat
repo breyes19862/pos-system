@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=1.2"
+set "SCRIPT_VERSION=1.3"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -39,7 +39,7 @@ goto PRE_BOOT_LOCK
 :PRE_BOOT_LOCK
 color 0E
 call :PRINT_BANNER
-echo   [!] TERMINAL LOCKED - AUTHENTICATION REQUIRED FOR BOOT
+echo   [LOCKED] TERMINAL LOCKED - AUTHENTICATION REQUIRED FOR BOOT
 echo.
 
 set "PIN="
@@ -69,7 +69,7 @@ if !errorlevel! equ 0 (
 )
 
 echo.
-echo  [!] ERROR: Invalid PIN. Access Denied.
+echo  [ERROR] Invalid PIN. Access Denied.
 timeout /t 2 >nul
 goto PRE_BOOT_LOCK
 
@@ -138,7 +138,7 @@ color 4F
 echo [ FATAL ERROR ]
 echo.
 echo  ==========================================================
-echo                 [!] SYSTEM FAULT DETECTED [!]
+echo                    SYSTEM FAULT DETECTED
 echo  ==========================================================
 echo.
 echo   FAULT: !FAULT_REASON!
@@ -151,7 +151,7 @@ set /p BOOT_CHOICE="Select Protocol [1-2]: "
 if "!BOOT_CHOICE!"=="1" (
     color 0E
     echo.
-    echo  [!] OVERRIDE ACCEPTED. FORCING INITIALIZATION...
+    echo  [WARN] OVERRIDE ACCEPTED. FORCING INITIALIZATION...
     timeout /t 2 >nul
     goto BOOT_CONTINUE
 ) 
@@ -188,7 +188,7 @@ goto LOCK_MENU
 :LOCK_MENU
 color 4F
 call :PRINT_BANNER
-echo   [!] TERMINAL LOCKED - APPLICATION CLOSED
+echo   [LOCKED] TERMINAL LOCKED - APPLICATION CLOSED
 echo.
 echo   1. Unlock POS System
 echo   2. Shutdown Terminal
@@ -239,7 +239,7 @@ if !errorlevel! equ 0 (
 )
 
 echo.
-echo  [!] ERROR: Invalid PIN. Access Denied.
+echo  [ERROR] Invalid PIN. Access Denied.
 timeout /t 2 >nul
 goto LOCK_MENU
 
@@ -317,7 +317,7 @@ goto ADMIN_DASHBOARD
 
 :ADM_FACTORY_RESET
 echo.
-echo  [!] WARNING: This will delete all custom PINs and restore defaults.
+echo  [WARN] This will delete all custom PINs and restore defaults.
 set /p CONFIRM="Are you sure you want to proceed? (Y/N): "
 if /I "!CONFIRM!"=="Y" (
     del /f /a:h "!UNLOCK_FILE!" >nul 2>&1

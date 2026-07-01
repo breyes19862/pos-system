@@ -21,6 +21,8 @@ set "DESKTOP_LAUNCHER=!DESKTOP_DIR!\POS_Watchdog.bat"
 set "POS_DIR=%USERPROFILE%\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
+set "PORTABLE_GIT_DIR=!POS_DIR!\PortableGit"
+set "PORTABLE_GIT_CMD=!PORTABLE_GIT_DIR!\cmd\git.exe"
 
 if not exist "!POS_DIR!" mkdir "!POS_DIR!"
 
@@ -41,18 +43,18 @@ call :SYNC_REPO
 if !errorlevel! neq 0 exit /b !errorlevel!
 
 if not exist "!SERVER_DIR!\POS_Watchdog.bat" (
-    echo [!] POS_Watchdog.bat was not found in !SERVER_DIR!.
+    echo [ERROR] POS_Watchdog.bat was not found in !SERVER_DIR!.
     exit /b 1
 )
 
 if not exist "!SERVER_DIR!\pos_git_update.ps1" (
-    echo [!] pos_git_update.ps1 was not found in !SERVER_DIR!.
+    echo [ERROR] pos_git_update.ps1 was not found in !SERVER_DIR!.
     exit /b 1
 )
 
 copy /y "!SERVER_DIR!\POS_Watchdog.bat" "!DESKTOP_LAUNCHER!" >nul
 if !errorlevel! neq 0 (
-    echo [!] Failed to install POS_Watchdog.bat to Desktop.
+    echo [ERROR] Failed to install POS_Watchdog.bat to Desktop.
     exit /b 1
 )
 
@@ -69,28 +71,51 @@ if !errorlevel! equ 0 (
     goto :EOF
 )
 
-echo [!] Git is not installed. Installing Git...
+if exist "!PORTABLE_GIT_CMD!" (
+    set "PATH=!PORTABLE_GIT_DIR!\cmd;!PORTABLE_GIT_DIR!\bin;!PATH!"
+    git --version >nul 2>&1
+    if !errorlevel! equ 0 (
+        echo [+] Portable Git is installed.
+        goto :EOF
+    )
+)
+
+echo [WARN] Git is not installed. Installing Git...
 winget --version >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [!] winget is required to install Git automatically.
+if !errorlevel! equ 0 (
+    winget install --id Git.Git -e --source winget --silent --accept-package-agreements --accept-source-agreements
+    if !errorlevel! equ 0 (
+        set "PATH=%ProgramFiles%\Git\cmd;%ProgramFiles(x86)%\Git\cmd;!PATH!"
+        git --version >nul 2>&1
+        if !errorlevel! equ 0 (
+            echo [+] Git installed successfully.
+            goto :EOF
+        )
+    )
+    echo [WARN] winget Git installation did not complete. Trying Portable Git...
+) else (
+    echo [WARN] winget is not available. Trying Portable Git...
+)
+
+if not exist "!SERVER_DIR!\install_portable_git.ps1" (
+    echo [ERROR] install_portable_git.ps1 was not found in !SERVER_DIR!.
     exit /b 1
 )
 
-winget install --id Git.Git -e --source winget --silent --accept-package-agreements --accept-source-agreements
+powershell -NoProfile -ExecutionPolicy Bypass -File "!SERVER_DIR!\install_portable_git.ps1" -TargetDir "!PORTABLE_GIT_DIR!"
 if !errorlevel! neq 0 (
-    echo [!] Git installation failed.
+    echo [ERROR] Portable Git installation failed.
     exit /b 1
 )
 
-set "PATH=%ProgramFiles%\Git\cmd;%ProgramFiles(x86)%\Git\cmd;%PATH%"
+set "PATH=!PORTABLE_GIT_DIR!\cmd;!PORTABLE_GIT_DIR!\bin;!PATH!"
 git --version >nul 2>&1
 if !errorlevel! neq 0 (
-    echo [!] Git installed, but it is not available in this command session yet.
-    echo [!] Close this window and run setup_pos.bat again.
+    echo [ERROR] Git was installed, but it is not available in this command session yet.
     exit /b 1
 )
 
-echo [+] Git installed successfully.
+echo [+] Portable Git installed successfully.
 goto :EOF
 
 :SYNC_REPO

@@ -346,8 +346,8 @@ exit
 
 :CHECK_FOR_UPDATES
 if not exist "!UPDATE_HELPER!" (
-    echo  [UPD] Update helper not found. Skipping update check.
-    timeout /t 1 >nul
+    set "UPDATE_DECISION_REASON=Update helper not found: !UPDATE_HELPER!"
+    call :UPDATE_DECISION_PROMPT
     goto :EOF
 )
 
@@ -382,14 +382,43 @@ if /I "!UPDATE_STATUS!"=="CURRENT" (
 )
 
 if /I "!UPDATE_STATUS!"=="SKIPPED" (
-    echo  [UPD] Update skipped: !UPDATE_MESSAGE!
-    timeout /t 1 >nul
+    set "UPDATE_DECISION_REASON=Update skipped: !UPDATE_MESSAGE!"
+    call :UPDATE_DECISION_PROMPT
     goto :EOF
 )
 
-echo  [UPD] Git update check failed. Continuing current startup.
-timeout /t 1 >nul
+if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=Unknown updater error"
+set "UPDATE_DECISION_REASON=Git update check failed: !UPDATE_MESSAGE!"
+call :UPDATE_DECISION_PROMPT
 goto :EOF
+
+:UPDATE_DECISION_PROMPT
+color 4F
+echo.
+echo  ==========================================================
+echo                 [!] UPDATE CHECK WARNING [!]
+echo  ==========================================================
+echo.
+echo   !UPDATE_DECISION_REASON!
+echo.
+echo   1. Continue POS Startup
+echo   2. Shutdown Terminal
+echo.
+:UPDATE_DECISION_INPUT
+set /p UPDATE_DECISION="Select Option [1-2]: "
+if "!UPDATE_DECISION!"=="1" (
+    color 0E
+    echo.
+    echo  [UPD] Continuing POS startup by operator request...
+    timeout /t 1 >nul
+    goto :EOF
+)
+if "!UPDATE_DECISION!"=="2" (
+    echo Shutting down terminal...
+    shutdown /s /t 0
+    exit
+)
+goto UPDATE_DECISION_INPUT
 
 :PRINT_BANNER
 cls

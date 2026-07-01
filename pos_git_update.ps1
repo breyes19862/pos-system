@@ -133,12 +133,6 @@ try {
     $localCommit = (Invoke-Git -RepoPath $repoRoot -Arguments @('rev-parse', 'HEAD')).Output
     $CurrentVersion = $CurrentVersion.Trim()
 
-    $dirty = (Invoke-Git -RepoPath $repoRoot -Arguments @('status', '--porcelain', '--untracked-files=no')).Output
-    if ($dirty) {
-        Write-Result -Status 'SKIPPED' -Branch $branch -Before $CurrentVersion -After $CurrentVersion -Message 'Local tracked files have changes'
-        exit 0
-    }
-
     Invoke-Git -RepoPath $repoRoot -Arguments @(
         'fetch',
         '--prune',
@@ -165,20 +159,18 @@ try {
         exit 0
     }
 
-    if ($localCommit -eq $remoteCommit) {
-        Write-Result -Status 'ERROR' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message 'Version file differs, but this checkout is already at the remote commit'
-        exit 1
-    }
+    Invoke-Git -RepoPath $repoRoot -Arguments @('config', 'core.sparseCheckout', 'true') | Out-Null
+    $sparseInfoDir = Join-Path $repoRoot '.git\info'
+    $sparseFile = Join-Path $sparseInfoDir 'sparse-checkout'
+    New-Item -ItemType Directory -Force -Path $sparseInfoDir | Out-Null
+    Set-Content -LiteralPath $sparseFile -Encoding ASCII -Value @(
+        $LauncherFileName,
+        'setup_pos.bat',
+        'pos_git_update.ps1'
+    )
 
-    if ($localCommit -ne $remoteCommit) {
-        $ancestorCheck = Invoke-Git -RepoPath $repoRoot -Arguments @('merge-base', '--is-ancestor', $localCommit, $remoteCommit) -AllowFailure
-        if ($ancestorCheck.ExitCode -ne 0) {
-            Write-Result -Status 'SKIPPED' -Branch $branch -Before $CurrentVersion -After $remoteVersion -Message 'Local branch has diverged from upstream'
-            exit 0
-        }
-
-        Invoke-Git -RepoPath $repoRoot -Arguments @('pull', '--ff-only', $remote, $remoteBranch) | Out-Null
-    }
+    Invoke-Git -RepoPath $repoRoot -Arguments @('reset', '--hard', $remoteRef) | Out-Null
+    Invoke-Git -RepoPath $repoRoot -Arguments @('clean', '-fdx') | Out-Null
 
     $repoLauncherPath = Join-Path $repoRoot $LauncherFileName
     if (-not (Test-Path -LiteralPath $repoLauncherPath -PathType Leaf)) {

@@ -1,6 +1,8 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+set "SCRIPT_VERSION=1.0"
+
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
 powershell -command "$w=(Get-Host).UI.RawUI; $s=$w.WindowSize; $b=$w.BufferSize; $b.Width=$s.Width; $b.Height=$s.Height; $w.BufferSize=$b" >nul 2>&1
@@ -352,7 +354,7 @@ set "UPDATE_CURRENT="
 set "UPDATE_REMOTE="
 set "UPDATE_MESSAGE="
 
-for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentScript "%~f0" -StateDir "!POS_DIR!" -VersionFileName "!UPDATE_VERSION_FILE!"`) do (
+for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentScript "%~f0" -CurrentVersion "!SCRIPT_VERSION!" -VersionFileName "!UPDATE_VERSION_FILE!"`) do (
     set "UPDATE_STATUS=%%a"
     set "UPDATE_BRANCH=%%b"
     set "UPDATE_CURRENT=%%c"

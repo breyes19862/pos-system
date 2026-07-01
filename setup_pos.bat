@@ -39,6 +39,9 @@ attrib +h "!POS_DIR!\*.*" >nul 2>&1
 call :ENSURE_GIT
 if !errorlevel! neq 0 exit /b !errorlevel!
 
+call :CONFIGURE_GIT_SAFE_DIRECTORY
+if !errorlevel! neq 0 exit /b !errorlevel!
+
 call :SYNC_REPO
 if !errorlevel! neq 0 exit /b !errorlevel!
 
@@ -112,6 +115,15 @@ if !errorlevel! neq 0 (
 )
 
 echo [+] Portable Git installed successfully.
+goto :EOF
+
+:CONFIGURE_GIT_SAFE_DIRECTORY
+echo [*] Configuring Git safe directory for POS_Server...
+git config --global --add safe.directory "*"
+if !errorlevel! neq 0 (
+    echo [ERROR] Failed to configure Git safe.directory.
+    exit /b 1
+)
 goto :EOF
 
 :SYNC_REPO

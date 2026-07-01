@@ -137,13 +137,14 @@ git config --global user.email "!GIT_USER_EMAIL!"
 if !errorlevel! neq 0 exit /b 1
 git config --global user.name "!GIT_USER_NAME!"
 if !errorlevel! neq 0 exit /b 1
-git config --global credential.helper manager-core >nul 2>&1
-if !errorlevel! neq 0 git config --global credential.helper manager >nul 2>&1
+git config --global --unset-all credential.helper >nul 2>&1
+git config --global --unset-all credential.https://github.com.username >nul 2>&1
 echo [+] Git email configured as !GIT_USER_EMAIL!.
 goto :EOF
 
 :SYNC_REPO
 if not exist "!SERVER_DIR!" mkdir "!SERVER_DIR!"
+set "GIT_TERMINAL_PROMPT=0"
 
 if not exist "!SERVER_DIR!\.git" (
     echo [*] Initializing POS_Server Git checkout...
@@ -161,7 +162,12 @@ if !errorlevel! neq 0 exit /b 1
 
 echo [*] Downloading latest POS files from GitHub...
 git -C "!SERVER_DIR!" fetch origin "!REPO_BRANCH!"
-if !errorlevel! neq 0 exit /b 1
+if !errorlevel! neq 0 (
+    echo [ERROR] GitHub download failed.
+    echo [ERROR] If this repository is private, GitHub requires a Personal Access Token instead of an account password.
+    echo [ERROR] Clear any saved GitHub username/password and authenticate with a token, then run setup again.
+    exit /b 1
+)
 
 git -C "!SERVER_DIR!" checkout -B "!REPO_BRANCH!" "origin/!REPO_BRANCH!"
 if !errorlevel! neq 0 exit /b 1

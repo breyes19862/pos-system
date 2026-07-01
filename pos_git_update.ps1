@@ -15,6 +15,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+$env:GIT_TERMINAL_PROMPT = '0'
 
 function Write-Result {
     param(

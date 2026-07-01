@@ -21,6 +21,9 @@ set "DESKTOP_LAUNCHER=!DESKTOP_DIR!\POS_Watchdog.bat"
 set "POS_DIR=%USERPROFILE%\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
+set "ARONIUM_EXE=%ProgramFiles%\Aronium\Aronium.Pos.exe"
+if not exist "!ARONIUM_EXE!" if exist "%ProgramFiles(x86)%\Aronium\Aronium.Pos.exe" set "ARONIUM_EXE=%ProgramFiles(x86)%\Aronium\Aronium.Pos.exe"
+set "ARONIUM_INSTALLER=!SERVER_DIR!\Aronium.Lite.Setup.exe"
 set "PORTABLE_GIT_DIR=!POS_DIR!\PortableGit"
 set "PORTABLE_GIT_CMD=!PORTABLE_GIT_DIR!\cmd\git.exe"
 
@@ -43,6 +46,9 @@ call :CONFIGURE_GIT_SAFE_DIRECTORY
 if !errorlevel! neq 0 exit /b !errorlevel!
 
 call :SYNC_REPO
+if !errorlevel! neq 0 exit /b !errorlevel!
+
+call :ENSURE_ARONIUM
 if !errorlevel! neq 0 exit /b !errorlevel!
 
 if not exist "!SERVER_DIR!\POS_Watchdog.bat" (
@@ -159,9 +165,10 @@ if !errorlevel! neq 0 exit /b 1
     echo POS_Watchdog.bat
     echo setup_pos.bat
     echo pos_git_update.ps1
+    echo Aronium.Lite.Setup.exe
 ) > "!SERVER_DIR!\.git\info\sparse-checkout"
 
-git -C "!SERVER_DIR!" clean -fdx
+git -C "!SERVER_DIR!" clean -fdx -e Aronium.Lite.Setup.exe
 if !errorlevel! neq 0 exit /b 1
 
 git -C "!SERVER_DIR!" checkout -B "!REPO_BRANCH!" "origin/!REPO_BRANCH!"
@@ -172,3 +179,25 @@ if !errorlevel! neq 0 exit /b 1
 
 echo [+] POS_Server Git checkout is ready.
 exit /b 0
+
+:ENSURE_ARONIUM
+if exist "!ARONIUM_EXE!" (
+    echo [+] Aronium POS is installed.
+    exit /b 0
+)
+
+echo [WARN] Aronium POS is not installed.
+if not exist "!ARONIUM_INSTALLER!" (
+    echo [ERROR] Aronium installer was not found: !ARONIUM_INSTALLER!
+    exit /b 1
+)
+
+echo [*] Running Aronium installer from POS_Server...
+start /wait "" "!ARONIUM_INSTALLER!"
+if exist "!ARONIUM_EXE!" (
+    echo [+] Aronium POS installed successfully.
+    exit /b 0
+)
+
+echo [ERROR] Aronium installer completed, but the POS executable was not found: !ARONIUM_EXE!
+exit /b 1

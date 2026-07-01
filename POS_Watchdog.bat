@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.0"
+set "SCRIPT_VERSION=3.1"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -15,6 +15,8 @@ if "!LAUNCHER_DIR:~-1!"=="\" set "LAUNCHER_DIR=!LAUNCHER_DIR:~0,-1!"
 set "POS_DIR=%USERPROFILE%\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
+set "ARONIUM_EXE=%ProgramFiles%\Aronium\Aronium.Pos.exe"
+if not exist "!ARONIUM_EXE!" if exist "%ProgramFiles(x86)%\Aronium\Aronium.Pos.exe" set "ARONIUM_EXE=%ProgramFiles(x86)%\Aronium\Aronium.Pos.exe"
 set "PORTABLE_GIT_DIR=!POS_DIR!\PortableGit"
 if exist "!PORTABLE_GIT_DIR!\cmd\git.exe" set "PATH=!PORTABLE_GIT_DIR!\cmd;!PORTABLE_GIT_DIR!\bin;!PATH!"
 set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!\POS_Server"
@@ -169,22 +171,23 @@ echo.
 echo  Terminal Online. Deploying Application Environment...
 timeout /t 2 >nul
 
-start "STAR_POS_BG" /min cmd /c "\\Mac\Home\Downloads\floreantpos-2.0.1-beta-64\floreantpos.bat"
-timeout /t 10 >nul
+call :ENSURE_ARONIUM_READY
+if not exist "!ARONIUM_EXE!" (
+    set "UPDATE_DECISION_REASON=Aronium POS executable was not found after setup: !ARONIUM_EXE!"
+    call :UPDATE_DECISION_PROMPT
+    goto LOCK_MENU
+)
+
+start "ARONIUM_POS" "!ARONIUM_EXE!"
+timeout /t 5 >nul
 
 :WATCHDOG_LOOP
-tasklist /NH /FI "IMAGENAME eq javaw.exe" | find /I "javaw.exe" >nul
-if %errorlevel% equ 0 (
-    timeout /t 2 >nul
-    goto WATCHDOG_LOOP
-)
-tasklist /NH /FI "IMAGENAME eq java.exe" | find /I "java.exe" >nul
-if %errorlevel% equ 0 (
+tasklist /NH /FI "IMAGENAME eq Aronium.Pos.exe" | find /I "Aronium.Pos.exe" >nul
+if !errorlevel! equ 0 (
     timeout /t 2 >nul
     goto WATCHDOG_LOOP
 )
 
-taskkill /F /FI "WINDOWTITLE eq STAR_POS_BG*" /IM cmd.exe >nul 2>&1
 goto LOCK_MENU
 
 :LOCK_MENU
@@ -463,6 +466,27 @@ if "!UPDATE_DECISION!"=="2" (
     exit
 )
 goto UPDATE_DECISION_INPUT
+
+:ENSURE_ARONIUM_READY
+if exist "!ARONIUM_EXE!" goto :EOF
+
+color 0E
+call :PRINT_UPDATE_BANNER
+echo  [SETUP] Aronium POS was not found.
+echo  [SETUP] Expected executable: !ARONIUM_EXE!
+echo  [SETUP] Running POS setup to install Aronium...
+if not exist "!SETUP_SCRIPT!" (
+    echo  [ERROR] setup_pos.bat was not found: !SETUP_SCRIPT!
+    timeout /t 3 >nul
+    goto :EOF
+)
+call "!SETUP_SCRIPT!" /auto
+if !errorlevel! neq 0 (
+    echo  [ERROR] POS setup failed with exit code !errorlevel!.
+    timeout /t 3 >nul
+    goto :EOF
+)
+goto :EOF
 
 :PRINT_UPDATE_PROGRESS
 set "PROGRESS_PERCENT=%~1"

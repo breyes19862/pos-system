@@ -186,11 +186,12 @@ try {
     Set-Content -LiteralPath $sparseFile -Encoding ASCII -Value @(
         $LauncherFileName,
         'setup_pos.bat',
-        'pos_git_update.ps1'
+        'pos_git_update.ps1',
+        'Aronium.Lite.Setup.exe'
     )
 
     Invoke-Git -RepoPath $repoRoot -Arguments @('reset', '--hard', $remoteRef) | Out-Null
-    Invoke-Git -RepoPath $repoRoot -Arguments @('clean', '-fdx') | Out-Null
+    Invoke-Git -RepoPath $repoRoot -Arguments @('clean', '-fdx', '-e', 'Aronium.Lite.Setup.exe') | Out-Null
 
     $repoLauncherPath = Join-Path $repoRoot $LauncherFileName
     if (-not (Test-Path -LiteralPath $repoLauncherPath -PathType Leaf)) {

@@ -12,6 +12,8 @@ set "SERVER_DIR=%~dp0"
 if "!SERVER_DIR:~-1!"=="\" set "SERVER_DIR=!SERVER_DIR:~0,-1!"
 set "REPO_URL=https://github.com/breyes19862/pos-system.git"
 set "REPO_BRANCH=main"
+set "GIT_USER_EMAIL=pandora.voters.0q@icloud.com"
+set "GIT_USER_NAME=POS System"
 
 :: POS_Watchdog.bat is installed one folder above POS_Server, which is the Desktop in this layout.
 for %%I in ("!SERVER_DIR!\..") do set "DESKTOP_DIR=%%~fI"
@@ -40,6 +42,9 @@ call :ENSURE_GIT
 if !errorlevel! neq 0 exit /b !errorlevel!
 
 call :CONFIGURE_GIT_SAFE_DIRECTORY
+if !errorlevel! neq 0 exit /b !errorlevel!
+
+call :CONFIGURE_GIT_IDENTITY
 if !errorlevel! neq 0 exit /b !errorlevel!
 
 call :SYNC_REPO
@@ -124,6 +129,17 @@ if !errorlevel! neq 0 (
     echo [ERROR] Failed to configure Git safe.directory.
     exit /b 1
 )
+goto :EOF
+
+:CONFIGURE_GIT_IDENTITY
+echo [*] Configuring Git identity...
+git config --global user.email "!GIT_USER_EMAIL!"
+if !errorlevel! neq 0 exit /b 1
+git config --global user.name "!GIT_USER_NAME!"
+if !errorlevel! neq 0 exit /b 1
+git config --global credential.helper manager-core >nul 2>&1
+if !errorlevel! neq 0 git config --global credential.helper manager >nul 2>&1
+echo [+] Git email configured as !GIT_USER_EMAIL!.
 goto :EOF
 
 :SYNC_REPO

@@ -1,9 +1,19 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SERVER_DIR=C:\Mac\Home\Desktop\POS_Server"
-set "DESKTOP_LAUNCHER=C:\Mac\Home\Desktop\POS_Watchdog.bat"
-set "POS_DIR=C:\Users\bryanreyeslopez\Documents\POS_System"
+:: Setup Registry for Kiosk Lockdown
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f >nul 2>&1
+
+:: POS_Server is the folder this setup script is running from.
+set "SERVER_DIR=%~dp0"
+if "!SERVER_DIR:~-1!"=="\" set "SERVER_DIR=!SERVER_DIR:~0,-1!"
+
+:: POS_Watchdog.bat is installed one folder above POS_Server, which is the Desktop in this layout.
+for %%I in ("!SERVER_DIR!\..") do set "DESKTOP_DIR=%%~fI"
+set "DESKTOP_LAUNCHER=!DESKTOP_DIR!\POS_Watchdog.bat"
+
+:: Create secure storage in the current Windows user's Documents folder.
+set "POS_DIR=%USERPROFILE%\Documents\POS_System"
 set "UNLOCK_FILE=!POS_DIR!\unlock_pins.txt"
 set "ADMIN_FILE=!POS_DIR!\admin_pins.txt"
 
@@ -11,13 +21,13 @@ if not exist "!POS_DIR!" mkdir "!POS_DIR!"
 
 if not exist "!UNLOCK_FILE!" (
     echo 1975> "!UNLOCK_FILE!"
-    attrib +h "!UNLOCK_FILE!" >nul 2>&1
 )
 
 if not exist "!ADMIN_FILE!" (
     echo 462362> "!ADMIN_FILE!"
-    attrib +h "!ADMIN_FILE!" >nul 2>&1
 )
+
+attrib +h "!POS_DIR!\*.*" >nul 2>&1
 
 if not exist "!SERVER_DIR!\POS_Watchdog.bat" (
     echo [!] POS_Watchdog.bat was not found in !SERVER_DIR!.
@@ -37,4 +47,6 @@ if !errorlevel! neq 0 (
 
 echo [+] POS launcher installed to !DESKTOP_LAUNCHER!.
 echo [+] POS data folder ready at !POS_DIR!.
+echo [+] POS Environment Initialized.
+pause
 exit /b 0

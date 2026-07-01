@@ -382,12 +382,13 @@ if /I "!UPDATE_STATUS!"=="CURRENT" (
 )
 
 if /I "!UPDATE_STATUS!"=="SKIPPED" (
+    if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=No reason was returned by the updater. Confirm POS_Server is a Git checkout and Git is installed."
     set "UPDATE_DECISION_REASON=Update skipped: !UPDATE_MESSAGE!"
     call :UPDATE_DECISION_PROMPT
     goto :EOF
 )
 
-if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=Unknown updater error"
+if "!UPDATE_MESSAGE!"=="" set "UPDATE_MESSAGE=No reason was returned by the updater. Confirm POS_Server is a Git checkout and Git is installed."
 set "UPDATE_DECISION_REASON=Git update check failed: !UPDATE_MESSAGE!"
 call :UPDATE_DECISION_PROMPT
 goto :EOF
@@ -396,7 +397,7 @@ goto :EOF
 color 4F
 echo.
 echo  ==========================================================
-echo                 [!] UPDATE CHECK WARNING [!]
+echo                  UPDATE CHECK WARNING
 echo  ==========================================================
 echo.
 echo   !UPDATE_DECISION_REASON!

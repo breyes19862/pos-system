@@ -97,12 +97,8 @@ if !errorlevel! equ 0 (
     echo [WARN] winget is not available. Trying Portable Git...
 )
 
-if not exist "!SERVER_DIR!\install_portable_git.ps1" (
-    echo [ERROR] install_portable_git.ps1 was not found in !SERVER_DIR!.
-    exit /b 1
-)
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "!SERVER_DIR!\install_portable_git.ps1" -TargetDir "!PORTABLE_GIT_DIR!"
+set "POS_PORTABLE_GIT_DIR=!PORTABLE_GIT_DIR!"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $target=$env:POS_PORTABLE_GIT_DIR; $release=Invoke-RestMethod -Uri 'https://api.github.com/repos/git-for-windows/git/releases/latest'; $asset=$release.assets | Where-Object { $_.name -like 'PortableGit-*-64-bit.7z.exe' } | Select-Object -First 1; if (-not $asset) { throw 'Portable Git release asset was not found.' }; $installer=Join-Path $env:TEMP $asset.name; Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installer; if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }; New-Item -ItemType Directory -Force -Path $target | Out-Null; $p=Start-Process -FilePath $installer -ArgumentList @('-y', \"-o$target\") -Wait -PassThru -NoNewWindow; if ($p.ExitCode -ne 0) { throw \"Portable Git extractor failed with exit code $($p.ExitCode).\" }; $git=Join-Path $target 'cmd\git.exe'; if (-not (Test-Path -LiteralPath $git -PathType Leaf)) { throw 'Portable Git extraction completed, but git.exe was not found.' }"
 if !errorlevel! neq 0 (
     echo [ERROR] Portable Git installation failed.
     exit /b 1

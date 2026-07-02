@@ -1,12 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.5"
-
-if /I "%~1" NEQ "/guarded" (
-    start "STAR_POS_TERMINAL" cmd /d /c ""%~f0" /guarded"
-    exit /b
-)
+set "SCRIPT_VERSION=3.6"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -43,10 +38,21 @@ if not exist "!ADMIN_FILE!" (
     attrib +h "!ADMIN_FILE!"
 )
 
-for /f "delims=" %%P in ('powershell -NoProfile -Command "$p=$PID; (Get-CimInstance Win32_Process -Filter ('ProcessId=' + $p)).ParentProcessId"') do set "WATCHDOG_PID=%%P"
-set "CONTROLLED_EXIT_FILE=!POS_DIR!\controlled_exit_!WATCHDOG_PID!.flag"
+set "POS_SESSION_ID=%~2"
+if "!POS_SESSION_ID!"=="" set "POS_SESSION_ID=%RANDOM%%RANDOM%"
+set "CONTROLLED_EXIT_FILE=!POS_DIR!\controlled_exit_!POS_SESSION_ID!.flag"
 set "SECURITY_RECOVERY_FILE=!POS_DIR!\security_recovery.flag"
-call :START_SECURITY_MONITOR
+
+if /I "%~1" NEQ "/guarded" (
+    set "POS_LAUNCHER_PATH=%~f0"
+    set "POS_MONITOR_PATH=!SECURITY_MONITOR!"
+    set "POS_RECOVERY_FLAG=!SECURITY_RECOVERY_FILE!"
+    set "POS_CONTROLLED_EXIT_FLAG=!CONTROLLED_EXIT_FILE!"
+    set "POS_SESSION_ID_ENV=!POS_SESSION_ID!"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $session=$env:POS_SESSION_ID_ENV; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',([char]34 + $launcher + [char]34 + ' /guarded ' + $session)) -PassThru; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled) }"
+    exit /b
+)
+
 if exist "!SECURITY_RECOVERY_FILE!" (
     del /f "!SECURITY_RECOVERY_FILE!" >nul 2>&1
     call :SECURITY_RECOVERY_SCAN
@@ -491,12 +497,6 @@ if "!UPDATE_DECISION!"=="2" (
     exit
 )
 goto UPDATE_DECISION_INPUT
-
-:START_SECURITY_MONITOR
-if not exist "!SECURITY_MONITOR!" goto :EOF
-if "!WATCHDOG_PID!"=="" goto :EOF
-start "STAR_POS_SECURITY_MONITOR" /min powershell -NoProfile -ExecutionPolicy Bypass -File "!SECURITY_MONITOR!" -WatchPid "!WATCHDOG_PID!" -LauncherPath "%~f0" -RecoveryFlag "!SECURITY_RECOVERY_FILE!" -ControlledExitFlag "!CONTROLLED_EXIT_FILE!"
-goto :EOF
 
 :MARK_CONTROLLED_EXIT
 if not "!CONTROLLED_EXIT_FILE!"=="" break > "!CONTROLLED_EXIT_FILE!"

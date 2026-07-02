@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=4.3"
+set "SCRIPT_VERSION=4.4"
 
 break off
 
@@ -62,7 +62,7 @@ if /I "%~1" NEQ "/guarded" (
     if "!SECURITY_RECOVERY_MODE!"=="1" set "POS_RECOVERY_ARG= /recover"
     set "POS_RECOVERY_ARG_ENV=!POS_RECOVERY_ARG!"
     del /f "!HEARTBEAT_FILE!" >nul 2>&1
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $heartbeat=$env:POS_HEARTBEAT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $cmdLine='title STAR_POS_TERMINAL & ' + [char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/q','/c',$cmdLine) -WindowStyle Maximized -PassThru; Start-Sleep -Milliseconds 800; $ws=New-Object -ComObject WScript.Shell; if ($ws.AppActivate('STAR_POS_TERMINAL')) { Start-Sleep -Milliseconds 200; $ws.SendKeys('{F11}') }; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled,'-HeartbeatFile',$heartbeat) }"
+    powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $heartbeat=$env:POS_HEARTBEAT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $cmdLine='title STAR_POS_TERMINAL & ' + [char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/q','/c',$cmdLine) -WindowStyle Maximized -PassThru; Start-Sleep -Milliseconds 800; $ws=New-Object -ComObject WScript.Shell; if ($ws.AppActivate('STAR_POS_TERMINAL')) { Start-Sleep -Milliseconds 200; $ws.SendKeys('{F11}') }; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Hidden -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled,'-HeartbeatFile',$heartbeat) }"
     exit /b
 )
 
@@ -139,7 +139,7 @@ for /L %%i in (1,1,2) do (
 
 for /f "tokens=2 delims==" %%a in ('wmic cpu get name /value ^| findstr "="') do set SYS_CPU=%%a
 for /f "tokens=2 delims==" %%a in ('wmic baseboard get product /value ^| findstr "="') do set SYS_MOB=%%a
-for /f "delims=" %%a in ('powershell -command "[math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB)"') do set SYS_RAM=%%a
+for /f "delims=" %%a in ('powershell -WindowStyle Hidden -command "[math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB)"') do set SYS_RAM=%%a
 
 echo  [ OK ]
 echo.
@@ -158,7 +158,7 @@ if !errorlevel! neq 0 (
     set FAULT_REASON=Network Unreachable / DNS Resolution Failed
     goto BOOT_ERROR
 )
-for /f "delims=" %%a in ('powershell -command "(Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Select-Object -First 1).InterfaceDescription"') do set SYS_NET=%%a
+for /f "delims=" %%a in ('powershell -WindowStyle Hidden -command "(Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Select-Object -First 1).InterfaceDescription"') do set SYS_NET=%%a
 echo [ CONNECTED ] (!SYS_NET!)
 timeout /t 1 >nul
 
@@ -414,7 +414,7 @@ set "UPDATE_CURRENT="
 set "UPDATE_REMOTE="
 set "UPDATE_MESSAGE="
 
-for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_HELPER!" -CurrentScript "%~f0" -RepoDir "!UPDATE_SERVER_DIR!" -CurrentVersion "!SCRIPT_VERSION!" -VersionFileName "!UPDATE_VERSION_FILE!"`) do (
+for /f "usebackq tokens=1-5 delims=|" %%a in (`powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "!UPDATE_HELPER!" -CurrentScript "%~f0" -RepoDir "!UPDATE_SERVER_DIR!" -CurrentVersion "!SCRIPT_VERSION!" -VersionFileName "!UPDATE_VERSION_FILE!"`) do (
     set "UPDATE_STATUS=%%a"
     set "UPDATE_BRANCH=%%b"
     set "UPDATE_CURRENT=%%c"
@@ -524,7 +524,7 @@ goto :EOF
 if "!HEARTBEAT_FILE!"=="" goto :EOF
 set "POS_HEARTBEAT_WRITE=!HEARTBEAT_FILE!"
 set "POS_HEARTBEAT_STOP=!CONTROLLED_EXIT_FILE!"
-start "" /b powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=$env:POS_HEARTBEAT_WRITE; $stop=$env:POS_HEARTBEAT_STOP; while ($true) { if ($stop -and (Test-Path -LiteralPath $stop)) { break }; try { Set-Content -LiteralPath $f -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII } catch {}; Start-Sleep -Seconds 1 }" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Start-Process -WindowStyle Hidden -FilePath powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-Command','$f=$env:POS_HEARTBEAT_WRITE; $stop=$env:POS_HEARTBEAT_STOP; while ($true) { if ($stop -and (Test-Path -LiteralPath $stop)) { break }; try { Set-Content -LiteralPath $f -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII } catch {}; Start-Sleep -Seconds 1 }')" >nul 2>&1
 goto :EOF
 
 :MARK_CONTROLLED_EXIT

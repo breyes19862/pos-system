@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=4.1"
+set "SCRIPT_VERSION=4.2"
 
 break off
 
@@ -43,6 +43,7 @@ if not exist "!ADMIN_FILE!" (
 set "POS_SESSION_ID=%~2"
 if "!POS_SESSION_ID!"=="" set "POS_SESSION_ID=%RANDOM%%RANDOM%"
 set "CONTROLLED_EXIT_FILE=!POS_DIR!\controlled_exit_!POS_SESSION_ID!.flag"
+set "HEARTBEAT_FILE=!POS_DIR!\heartbeat_!POS_SESSION_ID!.flag"
 set "SECURITY_RECOVERY_FILE=!POS_DIR!\security_recovery.flag"
 set "SECURITY_RECOVERY_MODE=0"
 if /I "%~1"=="/recover" set "SECURITY_RECOVERY_MODE=1"
@@ -53,16 +54,19 @@ if /I "%~1" NEQ "/guarded" (
     set "POS_MONITOR_PATH=!SECURITY_MONITOR!"
     set "POS_RECOVERY_FLAG=!SECURITY_RECOVERY_FILE!"
     set "POS_CONTROLLED_EXIT_FLAG=!CONTROLLED_EXIT_FILE!"
+    set "POS_HEARTBEAT_FLAG=!HEARTBEAT_FILE!"
     set "POS_SESSION_ID_ENV=!POS_SESSION_ID!"
     set "POS_RECOVERY_ARG="
     if "!SECURITY_RECOVERY_MODE!"=="1" set "POS_RECOVERY_ARG= /recover"
     set "POS_RECOVERY_ARG_ENV=!POS_RECOVERY_ARG!"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $cmdLine='title STAR_POS_TERMINAL & ' + [char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/q','/c',$cmdLine) -WindowStyle Maximized -PassThru; Start-Sleep -Milliseconds 800; $ws=New-Object -ComObject WScript.Shell; if ($ws.AppActivate('STAR_POS_TERMINAL')) { Start-Sleep -Milliseconds 200; $ws.SendKeys('{F11}') }; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled) }"
+    del /f "!HEARTBEAT_FILE!" >nul 2>&1
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $heartbeat=$env:POS_HEARTBEAT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $cmdLine='title STAR_POS_TERMINAL & ' + [char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/q','/c',$cmdLine) -WindowStyle Maximized -PassThru; Start-Sleep -Milliseconds 800; $ws=New-Object -ComObject WScript.Shell; if ($ws.AppActivate('STAR_POS_TERMINAL')) { Start-Sleep -Milliseconds 200; $ws.SendKeys('{F11}') }; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled,'-HeartbeatFile',$heartbeat) }"
     exit /b
 )
 
 title STAR_POS_TERMINAL
 call :LOCK_CONSOLE_CONTROLS
+call :START_HEARTBEAT
 
 if "!SECURITY_RECOVERY_MODE!"=="1" if exist "!SECURITY_RECOVERY_FILE!" (
     del /f "!SECURITY_RECOVERY_FILE!" >nul 2>&1
@@ -514,8 +518,15 @@ goto UPDATE_DECISION_INPUT
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$q=[char]34; $sig='[DllImport('+$q+'kernel32.dll'+$q+')] public static extern IntPtr GetStdHandle(int nStdHandle); [DllImport('+$q+'kernel32.dll'+$q+')] public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out int lpMode); [DllImport('+$q+'kernel32.dll'+$q+')] public static extern bool SetConsoleMode(IntPtr hConsoleHandle, int dwMode);'; $t=Add-Type -MemberDefinition $sig -Name ConsoleMode -Namespace StarServices -PassThru; $h=$t::GetStdHandle(-10); $mode=0; [void]$t::GetConsoleMode($h,[ref]$mode); $mode=($mode -bor 0x80) -band (-bnot 0x41); [void]$t::SetConsoleMode($h,$mode)" >nul 2>&1
 goto :EOF
 
+:START_HEARTBEAT
+if "!HEARTBEAT_FILE!"=="" goto :EOF
+set "POS_HEARTBEAT_WRITE=!HEARTBEAT_FILE!"
+start "" /b powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=$env:POS_HEARTBEAT_WRITE; while ($true) { try { Set-Content -LiteralPath $f -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII } catch {}; Start-Sleep -Seconds 1 }" >nul 2>&1
+goto :EOF
+
 :MARK_CONTROLLED_EXIT
 if not "!CONTROLLED_EXIT_FILE!"=="" break > "!CONTROLLED_EXIT_FILE!"
+if not "!HEARTBEAT_FILE!"=="" del /f "!HEARTBEAT_FILE!" >nul 2>&1
 goto :EOF
 
 :SECURITY_RECOVERY_SCAN

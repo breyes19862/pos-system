@@ -9,10 +9,26 @@ param(
     [string]$RecoveryFlag,
 
     [Parameter(Mandatory = $true)]
-    [string]$ControlledExitFlag
+    [string]$ControlledExitFlag,
+
+    [Parameter(Mandatory = $true)]
+    [string]$HeartbeatFile,
+
+    [int]$HeartbeatMaxAgeSeconds = 6,
+
+    [int]$StartupGraceSeconds = 20
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
+
+function Stop-GuardedTree {
+    try {
+        & taskkill /PID $WatchPid /T /F 2>&1 | Out-Null
+    } catch {
+        # Fall back to Stop-Process if taskkill is unavailable.
+        try { Stop-Process -Id $WatchPid -Force } catch {}
+    }
+}
 
 function Start-Recovery {
     if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
@@ -20,14 +36,7 @@ function Start-Recovery {
         exit 0
     }
 
-    try {
-        $watched = Get-Process -Id $WatchPid -ErrorAction SilentlyContinue
-        if ($watched) {
-            Stop-Process -Id $WatchPid -Force
-        }
-    } catch {
-        # The watched process may already be gone.
-    }
+    Stop-GuardedTree
 
     $recoveryDir = Split-Path -Parent $RecoveryFlag
     if ($recoveryDir -and -not (Test-Path -LiteralPath $recoveryDir -PathType Container)) {
@@ -44,6 +53,8 @@ function Start-Recovery {
     exit 0
 }
 
+$deadline = (Get-Date).AddSeconds($StartupGraceSeconds)
+
 while ($true) {
     if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
         Remove-Item -LiteralPath $ControlledExitFlag -Force
@@ -52,14 +63,24 @@ while ($true) {
 
     $process = Get-Process -Id $WatchPid -ErrorAction SilentlyContinue
     if (-not $process) {
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds 300
         Start-Recovery
     }
 
-    $title = $process.MainWindowTitle
-    if ($title -and $title -notlike '*STAR_POS_TERMINAL*') {
+    $heartbeatOk = $false
+    if (Test-Path -LiteralPath $HeartbeatFile -PathType Leaf) {
+        $age = ((Get-Date) - (Get-Item -LiteralPath $HeartbeatFile).LastWriteTime).TotalSeconds
+        if ($age -le $HeartbeatMaxAgeSeconds) {
+            $heartbeatOk = $true
+        }
+    } elseif ((Get-Date) -lt $deadline) {
+        # Still inside the startup grace window before the first heartbeat lands.
+        $heartbeatOk = $true
+    }
+
+    if (-not $heartbeatOk) {
         Start-Recovery
     }
 
-    Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
 }

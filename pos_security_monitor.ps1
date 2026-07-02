@@ -21,6 +21,19 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class PosMonitorWin32 {
+    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
+$consoleWindow = [PosMonitorWin32]::GetConsoleWindow()
+if ($consoleWindow -ne [IntPtr]::Zero) {
+    [void][PosMonitorWin32]::ShowWindow($consoleWindow, 0)
+}
+
 function Test-ControlledExit {
     if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
         Remove-Item -LiteralPath $ControlledExitFlag -Force

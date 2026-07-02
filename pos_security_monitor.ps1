@@ -14,28 +14,52 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 
-try {
-    $process = Get-Process -Id $WatchPid -ErrorAction Stop
-    Wait-Process -Id $WatchPid
-} catch {
-    # If the watched process is already gone, continue and decide below.
-}
+function Start-Recovery {
+    if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
+        Remove-Item -LiteralPath $ControlledExitFlag -Force
+        exit 0
+    }
 
-Start-Sleep -Milliseconds 500
+    try {
+        $watched = Get-Process -Id $WatchPid -ErrorAction SilentlyContinue
+        if ($watched) {
+            Stop-Process -Id $WatchPid -Force
+        }
+    } catch {
+        # The watched process may already be gone.
+    }
 
-if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
-    Remove-Item -LiteralPath $ControlledExitFlag -Force
+    $recoveryDir = Split-Path -Parent $RecoveryFlag
+    if ($recoveryDir -and -not (Test-Path -LiteralPath $recoveryDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $recoveryDir | Out-Null
+    }
+
+    Set-Content -LiteralPath $RecoveryFlag -Value "UNEXPECTED_TERMINATION" -Encoding ASCII
+
+    if (Test-Path -LiteralPath $LauncherPath -PathType Leaf) {
+        $cmdLine = 'call ' + [char]34 + $LauncherPath + [char]34 + ' /recover & exit'
+        Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/q', '/c', $cmdLine) -WindowStyle Maximized
+    }
+
     exit 0
 }
 
-$recoveryDir = Split-Path -Parent $RecoveryFlag
-if ($recoveryDir -and -not (Test-Path -LiteralPath $recoveryDir -PathType Container)) {
-    New-Item -ItemType Directory -Force -Path $recoveryDir | Out-Null
-}
+while ($true) {
+    if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
+        Remove-Item -LiteralPath $ControlledExitFlag -Force
+        exit 0
+    }
 
-Set-Content -LiteralPath $RecoveryFlag -Value "UNEXPECTED_TERMINATION" -Encoding ASCII
+    $process = Get-Process -Id $WatchPid -ErrorAction SilentlyContinue
+    if (-not $process) {
+        Start-Sleep -Milliseconds 500
+        Start-Recovery
+    }
 
-if (Test-Path -LiteralPath $LauncherPath -PathType Leaf) {
-    $cmdLine = 'call ' + [char]34 + $LauncherPath + [char]34 + ' /recover & exit'
-    Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/q', '/c', $cmdLine) -WindowStyle Maximized
+    $title = $process.MainWindowTitle
+    if ($title -and $title -notlike '*STAR_POS_TERMINAL*') {
+        Start-Recovery
+    }
+
+    Start-Sleep -Seconds 1
 }

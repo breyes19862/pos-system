@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.8"
+set "SCRIPT_VERSION=3.9"
 
 break off
 

@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.9"
+set "SCRIPT_VERSION=4.0"
 
 break off
 
@@ -60,6 +60,9 @@ if /I "%~1" NEQ "/guarded" (
     powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $cmdLine='title STAR_POS_TERMINAL & call ' + [char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg + ' & exit'; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/q','/c',$cmdLine) -WindowStyle Maximized -PassThru; Start-Sleep -Milliseconds 800; $ws=New-Object -ComObject WScript.Shell; if ($ws.AppActivate('STAR_POS_TERMINAL')) { Start-Sleep -Milliseconds 200; $ws.SendKeys('{F11}') }; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled) }"
     exit /b
 )
+
+title STAR_POS_TERMINAL
+call :LOCK_CONSOLE_CONTROLS
 
 if "!SECURITY_RECOVERY_MODE!"=="1" if exist "!SECURITY_RECOVERY_FILE!" (
     del /f "!SECURITY_RECOVERY_FILE!" >nul 2>&1
@@ -506,6 +509,10 @@ if "!UPDATE_DECISION!"=="2" (
     exit
 )
 goto UPDATE_DECISION_INPUT
+
+:LOCK_CONSOLE_CONTROLS
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$q=[char]34; $sig='[DllImport('+$q+'kernel32.dll'+$q+')] public static extern IntPtr GetStdHandle(int nStdHandle); [DllImport('+$q+'kernel32.dll'+$q+')] public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out int lpMode); [DllImport('+$q+'kernel32.dll'+$q+')] public static extern bool SetConsoleMode(IntPtr hConsoleHandle, int dwMode);'; $t=Add-Type -MemberDefinition $sig -Name ConsoleMode -Namespace StarServices -PassThru; $h=$t::GetStdHandle(-10); $mode=0; [void]$t::GetConsoleMode($h,[ref]$mode); $mode=($mode -bor 0x80) -band (-bnot 0x41); [void]$t::SetConsoleMode($h,$mode)" >nul 2>&1
+goto :EOF
 
 :MARK_CONTROLLED_EXIT
 if not "!CONTROLLED_EXIT_FILE!"=="" break > "!CONTROLLED_EXIT_FILE!"

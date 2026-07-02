@@ -187,6 +187,7 @@ try {
         $LauncherFileName,
         'setup_pos.bat',
         'pos_git_update.ps1',
+        'pos_security_monitor.ps1',
         'Aronium.Lite.Setup.exe'
     )
 

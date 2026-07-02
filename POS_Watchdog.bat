@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.3"
+set "SCRIPT_VERSION=3.4"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -25,6 +25,7 @@ set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!\POS_Server"
 if not exist "!UPDATE_SERVER_DIR!\pos_git_update.ps1" if exist "%~dp0pos_git_update.ps1" set "UPDATE_SERVER_DIR=!LAUNCHER_DIR!"
 set "UPDATE_HELPER=!UPDATE_SERVER_DIR!\pos_git_update.ps1"
 set "SETUP_SCRIPT=!UPDATE_SERVER_DIR!\setup_pos.bat"
+set "SECURITY_MONITOR=!UPDATE_SERVER_DIR!\pos_security_monitor.ps1"
 set "UPDATE_VERSION_FILE=pos_version.txt"
 
 if not exist "!POS_DIR!" mkdir "!POS_DIR!"
@@ -35,6 +36,15 @@ if not exist "!UNLOCK_FILE!" (
 if not exist "!ADMIN_FILE!" (
     echo 462362> "!ADMIN_FILE!"
     attrib +h "!ADMIN_FILE!"
+)
+
+for /f "delims=" %%P in ('powershell -NoProfile -Command "$p=$PID; (Get-CimInstance Win32_Process -Filter ('ProcessId=' + $p)).ParentProcessId"') do set "WATCHDOG_PID=%%P"
+set "CONTROLLED_EXIT_FILE=!POS_DIR!\controlled_exit_!WATCHDOG_PID!.flag"
+set "SECURITY_RECOVERY_FILE=!POS_DIR!\security_recovery.flag"
+call :START_SECURITY_MONITOR
+if exist "!SECURITY_RECOVERY_FILE!" (
+    del /f "!SECURITY_RECOVERY_FILE!" >nul 2>&1
+    call :SECURITY_RECOVERY_SCAN
 )
 
 call :CHECK_FOR_UPDATES
@@ -163,6 +173,7 @@ if "!BOOT_CHOICE!"=="1" (
 ) 
 if "!BOOT_CHOICE!"=="2" (
     echo Shutting down terminal...
+    call :MARK_CONTROLLED_EXIT
     shutdown /s /t 0
     exit
 )
@@ -206,11 +217,13 @@ set /p MENU_CHOICE="Select Option [1-3]: "
 if "!MENU_CHOICE!"=="1" goto LOCK_PIN_LOGIC
 if "!MENU_CHOICE!"=="2" (
     echo Shutting down...
+    call :MARK_CONTROLLED_EXIT
     shutdown /s /t 0
     exit
 )
 if "!MENU_CHOICE!"=="3" (
     echo Rebooting terminal...
+    call :MARK_CONTROLLED_EXIT
     shutdown /r /t 0
     exit
 )
@@ -331,6 +344,7 @@ if /I "!CONFIRM!"=="Y" (
     del /f /a:h "!ADMIN_FILE!" >nul 2>&1
     echo  System wiped. Rebooting terminal to recreate defaults...
     timeout /t 3 >nul
+    call :MARK_CONTROLLED_EXIT
     shutdown /r /t 0
     exit
 )
@@ -350,6 +364,7 @@ timeout /t 2 >nul
 
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 0 /f >nul 2>&1
 start explorer.exe
+call :MARK_CONTROLLED_EXIT
 exit
 
 :CHECK_FOR_UPDATES
@@ -383,12 +398,13 @@ if /I "!UPDATE_STATUS!"=="UPDATED" (
     call :PRINT_UPDATE_PROGRESS 70 "Update downloaded and staged"
     echo  [UPD] Git update pulled for !UPDATE_BRANCH!.
     echo  [UPD] Updated from !UPDATE_CURRENT! to !UPDATE_REMOTE!.
-    start "POS_UPDATE_APPLY" /min "!UPDATE_MESSAGE!"
     call :PRINT_UPDATE_PROGRESS 100 "Update applied"
     echo.
     echo  [UPD] Update completed successfully.
     echo  [UPD] POS is restarting now. Please wait...
     timeout /t 5 >nul
+    call :MARK_CONTROLLED_EXIT
+    start "POS_UPDATE_APPLY" /min "!UPDATE_MESSAGE!"
     exit
 )
 
@@ -439,6 +455,7 @@ call :PRINT_UPDATE_PROGRESS 100 "Setup completed"
 echo  [SETUP] Setup completed successfully.
 echo  [SETUP] POS is restarting now. Please wait...
 timeout /t 5 >nul
+call :MARK_CONTROLLED_EXIT
 start "" "%~f0"
 exit
 
@@ -464,10 +481,84 @@ if "!UPDATE_DECISION!"=="1" (
 )
 if "!UPDATE_DECISION!"=="2" (
     echo Shutting down terminal...
+    call :MARK_CONTROLLED_EXIT
     shutdown /s /t 0
     exit
 )
 goto UPDATE_DECISION_INPUT
+
+:START_SECURITY_MONITOR
+if not exist "!SECURITY_MONITOR!" goto :EOF
+if "!WATCHDOG_PID!"=="" goto :EOF
+start "STAR_POS_SECURITY_MONITOR" /min powershell -NoProfile -ExecutionPolicy Bypass -File "!SECURITY_MONITOR!" -WatchPid "!WATCHDOG_PID!" -LauncherPath "%~f0" -RecoveryFlag "!SECURITY_RECOVERY_FILE!" -ControlledExitFlag "!CONTROLLED_EXIT_FILE!"
+goto :EOF
+
+:MARK_CONTROLLED_EXIT
+if not "!CONTROLLED_EXIT_FILE!"=="" break > "!CONTROLLED_EXIT_FILE!"
+goto :EOF
+
+:SECURITY_RECOVERY_SCAN
+color 0C
+call :PRINT_SECURITY_BANNER
+echo  [SEC] Unexpected POS shell termination detected.
+echo  [SEC] Running recovery integrity scan before unlocking terminal...
+echo.
+
+call :SECURITY_SCAN_STEP 15 "Checking POS data directory"
+if not exist "!POS_DIR!" mkdir "!POS_DIR!"
+
+call :SECURITY_SCAN_STEP 30 "Checking PIN storage"
+if not exist "!UNLOCK_FILE!" echo 1975> "!UNLOCK_FILE!"
+if not exist "!ADMIN_FILE!" echo 462362> "!ADMIN_FILE!"
+attrib +h "!POS_DIR!\*.*" >nul 2>&1
+
+call :SECURITY_SCAN_STEP 45 "Checking updater components"
+if not exist "!UPDATE_HELPER!" (
+    echo  [SEC] Updater helper missing: !UPDATE_HELPER!
+) else (
+    echo  [SEC] Updater helper verified.
+)
+
+call :SECURITY_SCAN_STEP 60 "Checking Aronium executable"
+if exist "!ARONIUM_EXE!" (
+    echo  [SEC] Aronium executable verified.
+) else (
+    echo  [SEC] Aronium executable missing. Setup will be requested during boot.
+)
+
+call :SECURITY_SCAN_STEP 75 "Checking kiosk policy"
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f >nul 2>&1
+
+call :SECURITY_SCAN_STEP 90 "Checking network availability"
+ping -n 1 8.8.8.8 >nul 2>&1
+if !errorlevel! equ 0 (
+    echo  [SEC] Network check passed.
+) else (
+    echo  [SEC] Network check failed. Boot diagnostics will verify again.
+)
+
+call :SECURITY_SCAN_STEP 100 "Security recovery scan completed"
+echo.
+echo  [SEC] Security system restored. Continuing POS startup...
+timeout /t 5 >nul
+goto :EOF
+
+:SECURITY_SCAN_STEP
+set "SECURITY_PROGRESS=%~1"
+set "SECURITY_LABEL=%~2"
+set "SECURITY_BAR="
+if %SECURITY_PROGRESS% GEQ 15 set "SECURITY_BAR=#####-------------------------"
+if %SECURITY_PROGRESS% GEQ 30 set "SECURITY_BAR=#########---------------------"
+if %SECURITY_PROGRESS% GEQ 45 set "SECURITY_BAR=##############----------------"
+if %SECURITY_PROGRESS% GEQ 60 set "SECURITY_BAR=##################------------"
+if %SECURITY_PROGRESS% GEQ 75 set "SECURITY_BAR=#######################-------"
+if %SECURITY_PROGRESS% GEQ 90 set "SECURITY_BAR=###########################---"
+if %SECURITY_PROGRESS% GEQ 100 set "SECURITY_BAR=##############################"
+echo  [SEC] !SECURITY_LABEL!
+echo  [SEC] [!SECURITY_BAR!] !SECURITY_PROGRESS!%%
+echo.
+timeout /t 1 >nul
+goto :EOF
 
 :ENSURE_ARONIUM_READY
 if exist "!ARONIUM_EXE!" goto :EOF
@@ -512,6 +603,19 @@ echo.
 echo  ========================================================================================
 echo.
 echo                         P . O . S .   U P D A T E R
+echo.
+echo  ========================================================================================
+echo.
+goto :EOF
+
+:PRINT_SECURITY_BANNER
+cls
+echo.
+echo  ========================================================================================
+echo.
+echo                  S T A R   S E R V I C E S   P . O . S .
+echo.
+echo                         S E C U R I T Y   S Y S T E M
 echo.
 echo  ========================================================================================
 echo.

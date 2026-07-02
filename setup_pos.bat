@@ -61,6 +61,11 @@ if not exist "!SERVER_DIR!\pos_git_update.ps1" (
     exit /b 1
 )
 
+if not exist "!SERVER_DIR!\pos_security_monitor.ps1" (
+    echo [ERROR] pos_security_monitor.ps1 was not found in !SERVER_DIR!.
+    exit /b 1
+)
+
 copy /y "!SERVER_DIR!\POS_Watchdog.bat" "!DESKTOP_LAUNCHER!" >nul
 if !errorlevel! neq 0 (
     echo [ERROR] Failed to install POS_Watchdog.bat to Desktop.
@@ -165,6 +170,7 @@ if !errorlevel! neq 0 exit /b 1
     echo POS_Watchdog.bat
     echo setup_pos.bat
     echo pos_git_update.ps1
+    echo pos_security_monitor.ps1
     echo Aronium.Lite.Setup.exe
 ) > "!SERVER_DIR!\.git\info\sparse-checkout"
 

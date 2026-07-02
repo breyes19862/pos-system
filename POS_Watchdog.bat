@@ -1,7 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.7"
+set "SCRIPT_VERSION=3.8"
+
+break off
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -55,7 +57,7 @@ if /I "%~1" NEQ "/guarded" (
     set "POS_RECOVERY_ARG="
     if "!SECURITY_RECOVERY_MODE!"=="1" set "POS_RECOVERY_ARG= /recover"
     set "POS_RECOVERY_ARG_ENV=!POS_RECOVERY_ARG!"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',([char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg)) -PassThru; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled) }"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $cmdLine='title STAR_POS_TERMINAL & call ' + [char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg + ' & exit'; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/q','/c',$cmdLine) -WindowStyle Maximized -PassThru; Start-Sleep -Milliseconds 800; $ws=New-Object -ComObject WScript.Shell; if ($ws.AppActivate('STAR_POS_TERMINAL')) { Start-Sleep -Milliseconds 200; $ws.SendKeys('{F11}') }; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled) }"
     exit /b
 )
 

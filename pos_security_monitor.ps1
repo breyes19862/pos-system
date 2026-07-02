@@ -36,5 +36,6 @@ if ($recoveryDir -and -not (Test-Path -LiteralPath $recoveryDir -PathType Contai
 Set-Content -LiteralPath $RecoveryFlag -Value "UNEXPECTED_TERMINATION" -Encoding ASCII
 
 if (Test-Path -LiteralPath $LauncherPath -PathType Leaf) {
-    Start-Process -FilePath $LauncherPath -ArgumentList '/recover'
+    $cmdLine = 'call ' + [char]34 + $LauncherPath + [char]34 + ' /recover & exit'
+    Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/q', '/c', $cmdLine) -WindowStyle Maximized
 }

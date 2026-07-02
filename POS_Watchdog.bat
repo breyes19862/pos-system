@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.6"
+set "SCRIPT_VERSION=3.7"
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul
@@ -42,6 +42,9 @@ set "POS_SESSION_ID=%~2"
 if "!POS_SESSION_ID!"=="" set "POS_SESSION_ID=%RANDOM%%RANDOM%"
 set "CONTROLLED_EXIT_FILE=!POS_DIR!\controlled_exit_!POS_SESSION_ID!.flag"
 set "SECURITY_RECOVERY_FILE=!POS_DIR!\security_recovery.flag"
+set "SECURITY_RECOVERY_MODE=0"
+if /I "%~1"=="/recover" set "SECURITY_RECOVERY_MODE=1"
+if /I "%~3"=="/recover" set "SECURITY_RECOVERY_MODE=1"
 
 if /I "%~1" NEQ "/guarded" (
     set "POS_LAUNCHER_PATH=%~f0"
@@ -49,14 +52,18 @@ if /I "%~1" NEQ "/guarded" (
     set "POS_RECOVERY_FLAG=!SECURITY_RECOVERY_FILE!"
     set "POS_CONTROLLED_EXIT_FLAG=!CONTROLLED_EXIT_FILE!"
     set "POS_SESSION_ID_ENV=!POS_SESSION_ID!"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $session=$env:POS_SESSION_ID_ENV; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',([char]34 + $launcher + [char]34 + ' /guarded ' + $session)) -PassThru; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled) }"
+    set "POS_RECOVERY_ARG="
+    if "!SECURITY_RECOVERY_MODE!"=="1" set "POS_RECOVERY_ARG= /recover"
+    set "POS_RECOVERY_ARG_ENV=!POS_RECOVERY_ARG!"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$launcher=$env:POS_LAUNCHER_PATH; $monitor=$env:POS_MONITOR_PATH; $recovery=$env:POS_RECOVERY_FLAG; $controlled=$env:POS_CONTROLLED_EXIT_FLAG; $session=$env:POS_SESSION_ID_ENV; $recoverArg=$env:POS_RECOVERY_ARG_ENV; $child=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',([char]34 + $launcher + [char]34 + ' /guarded ' + $session + $recoverArg)) -PassThru; if (Test-Path -LiteralPath $monitor -PathType Leaf) { Start-Process -WindowStyle Minimized -FilePath powershell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$monitor,'-WatchPid',$child.Id,'-LauncherPath',$launcher,'-RecoveryFlag',$recovery,'-ControlledExitFlag',$controlled) }"
     exit /b
 )
 
-if exist "!SECURITY_RECOVERY_FILE!" (
+if "!SECURITY_RECOVERY_MODE!"=="1" if exist "!SECURITY_RECOVERY_FILE!" (
     del /f "!SECURITY_RECOVERY_FILE!" >nul 2>&1
     call :SECURITY_RECOVERY_SCAN
 )
+if "!SECURITY_RECOVERY_MODE!"=="0" if exist "!SECURITY_RECOVERY_FILE!" del /f "!SECURITY_RECOVERY_FILE!" >nul 2>&1
 
 call :CHECK_FOR_UPDATES
 

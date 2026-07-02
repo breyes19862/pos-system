@@ -14,27 +14,31 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$HeartbeatFile,
 
-    [int]$HeartbeatMaxAgeSeconds = 6,
+    [int]$HeartbeatMaxAgeSeconds = 4,
 
-    [int]$StartupGraceSeconds = 20
+    [int]$StartupGraceSeconds = 25
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
+
+function Test-ControlledExit {
+    if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
+        Remove-Item -LiteralPath $ControlledExitFlag -Force
+        return $true
+    }
+    return $false
+}
 
 function Stop-GuardedTree {
     try {
         & taskkill /PID $WatchPid /T /F 2>&1 | Out-Null
     } catch {
-        # Fall back to Stop-Process if taskkill is unavailable.
         try { Stop-Process -Id $WatchPid -Force } catch {}
     }
 }
 
 function Start-Recovery {
-    if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
-        Remove-Item -LiteralPath $ControlledExitFlag -Force
-        exit 0
-    }
+    if (Test-ControlledExit) { exit 0 }
 
     Stop-GuardedTree
 
@@ -54,26 +58,25 @@ function Start-Recovery {
 }
 
 $deadline = (Get-Date).AddSeconds($StartupGraceSeconds)
+$heartbeatSeen = $false
 
 while ($true) {
-    if (Test-Path -LiteralPath $ControlledExitFlag -PathType Leaf) {
-        Remove-Item -LiteralPath $ControlledExitFlag -Force
-        exit 0
-    }
+    if (Test-ControlledExit) { exit 0 }
 
     $process = Get-Process -Id $WatchPid -ErrorAction SilentlyContinue
     if (-not $process) {
-        Start-Sleep -Milliseconds 300
+        Start-Sleep -Milliseconds 250
         Start-Recovery
     }
 
     $heartbeatOk = $false
     if (Test-Path -LiteralPath $HeartbeatFile -PathType Leaf) {
+        $heartbeatSeen = $true
         $age = ((Get-Date) - (Get-Item -LiteralPath $HeartbeatFile).LastWriteTime).TotalSeconds
         if ($age -le $HeartbeatMaxAgeSeconds) {
             $heartbeatOk = $true
         }
-    } elseif ((Get-Date) -lt $deadline) {
+    } elseif (-not $heartbeatSeen -and (Get-Date) -lt $deadline) {
         # Still inside the startup grace window before the first heartbeat lands.
         $heartbeatOk = $true
     }
@@ -82,5 +85,5 @@ while ($true) {
         Start-Recovery
     }
 
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
 }

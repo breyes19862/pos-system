@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=4.2"
+set "SCRIPT_VERSION=4.3"
 
 break off
 
@@ -50,6 +50,8 @@ if /I "%~1"=="/recover" set "SECURITY_RECOVERY_MODE=1"
 if /I "%~3"=="/recover" set "SECURITY_RECOVERY_MODE=1"
 
 if /I "%~1" NEQ "/guarded" (
+    del /f /q "!POS_DIR!\heartbeat_*.flag" >nul 2>&1
+    del /f /q "!POS_DIR!\controlled_exit_*.flag" >nul 2>&1
     set "POS_LAUNCHER_PATH=%~f0"
     set "POS_MONITOR_PATH=!SECURITY_MONITOR!"
     set "POS_RECOVERY_FLAG=!SECURITY_RECOVERY_FILE!"
@@ -521,7 +523,8 @@ goto :EOF
 :START_HEARTBEAT
 if "!HEARTBEAT_FILE!"=="" goto :EOF
 set "POS_HEARTBEAT_WRITE=!HEARTBEAT_FILE!"
-start "" /b powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=$env:POS_HEARTBEAT_WRITE; while ($true) { try { Set-Content -LiteralPath $f -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII } catch {}; Start-Sleep -Seconds 1 }" >nul 2>&1
+set "POS_HEARTBEAT_STOP=!CONTROLLED_EXIT_FILE!"
+start "" /b powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=$env:POS_HEARTBEAT_WRITE; $stop=$env:POS_HEARTBEAT_STOP; while ($true) { if ($stop -and (Test-Path -LiteralPath $stop)) { break }; try { Set-Content -LiteralPath $f -Value ([DateTime]::UtcNow.Ticks) -Encoding ASCII } catch {}; Start-Sleep -Seconds 1 }" >nul 2>&1
 goto :EOF
 
 :MARK_CONTROLLED_EXIT

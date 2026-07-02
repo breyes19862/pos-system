@@ -36,5 +36,5 @@ if ($recoveryDir -and -not (Test-Path -LiteralPath $recoveryDir -PathType Contai
 Set-Content -LiteralPath $RecoveryFlag -Value "UNEXPECTED_TERMINATION" -Encoding ASCII
 
 if (Test-Path -LiteralPath $LauncherPath -PathType Leaf) {
-    Start-Process -FilePath $LauncherPath
+    Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', "`"$LauncherPath`" /guarded")
 }

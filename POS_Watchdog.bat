@@ -1,7 +1,12 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "SCRIPT_VERSION=3.4"
+set "SCRIPT_VERSION=3.5"
+
+if /I "%~1" NEQ "/guarded" (
+    start "STAR_POS_TERMINAL" cmd /d /c ""%~f0" /guarded"
+    exit /b
+)
 
 powershell -command "(New-Object -ComObject WScript.Shell).SendKeys('{F11}')"
 timeout /t 1 >nul

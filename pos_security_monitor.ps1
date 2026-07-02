@@ -37,7 +37,7 @@ function Start-Recovery {
     Set-Content -LiteralPath $RecoveryFlag -Value "UNEXPECTED_TERMINATION" -Encoding ASCII
 
     if (Test-Path -LiteralPath $LauncherPath -PathType Leaf) {
-        $cmdLine = 'call ' + [char]34 + $LauncherPath + [char]34 + ' /recover & exit'
+        $cmdLine = [char]34 + $LauncherPath + [char]34 + ' /recover'
         Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/q', '/c', $cmdLine) -WindowStyle Maximized
     }
 
